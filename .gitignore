@@ -14,7 +14,7 @@
 
 # Temp & test files
 /_test_*
-/_tmp_*
+/_t_*
 /_yes.txt
 /_cmdline-tools.zip
 
