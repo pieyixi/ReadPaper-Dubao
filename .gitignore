@@ -1,0 +1,31 @@
+# Build
+/app/build/
+/.gradle/
+*.apk
+
+# Local
+/local.properties
+
+# Signing key (DO NOT COMMIT)
+/release.jks
+
+# Android SDK (downloaded by 制作APK.bat)
+/sdk/
+
+# Temp & test files
+/_test_*
+/_tmp_*
+/_yes.txt
+/_cmdline-tools.zip
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+
+# IDE
+.idea/
+*.iml
+
+# Test script
+/test_full.ps1

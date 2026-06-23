@@ -1,0 +1,309 @@
+/* ========================================
+   读报 App - 全部样式
+   纯黑 + 白底 + 极简风格
+   参考 SPEC.md 第4节 UI规格
+   TODO: 实现完整的响应式样式
+   ======================================== */
+
+:root {
+    --bg: #ffffff;
+    --card: #f8f8f8;
+    --text: #1a1a1a;
+    --text2: #666666;
+    --text3: #999999;
+    --border: #e8e8e8;
+    /* 报纸卡片色 */
+    --st: #1a5276;
+    --zz: #6b3a2e;
+    --rmrb: #c0392b;
+    --nfrb: #2c7a3a;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+    font-family: "PingFang SC","Noto Sans SC","Microsoft YaHei",sans-serif;
+    background: var(--bg); color: var(--text);
+    -webkit-font-smoothing: antialiased;
+}
+a { text-decoration: none; color: inherit; }
+
+/* ===== 首页 ===== */
+.home-page { padding: 48px 20px 0; }
+.home-page h1 { font-size: 28px; font-weight: 700; margin-bottom: 4px; }
+.home-page .subtitle { font-size: 14px; color: var(--text3); margin-bottom: 28px; }
+.newspaper-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.np-card {
+    aspect-ratio: 1.3; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+.np-card .name {
+    color: #fff; font-size: 20px; font-weight: 600;
+    text-align: center; line-height: 1.5; letter-spacing: 1px;
+}
+.np-card .name small { display: block; font-size: 13px; font-weight: 400; opacity: .85; margin-top: 2px; }
+.np-st { background: linear-gradient(145deg,var(--st),#2c6a96); }
+.np-zz { background: linear-gradient(145deg,var(--zz),#8b5545); }
+.np-rmrb { background: linear-gradient(145deg,var(--rmrb),#e0513e); }
+.np-nfrb { background: linear-gradient(145deg,var(--nfrb),#3d9e4e); }
+
+/* ===== 页面通用 ===== */
+.page { padding: 24px 20px 0; }
+.page-header {
+    display: flex; align-items: center; gap: 12px;
+    padding-bottom: 16px; border-bottom: 1px solid var(--border); margin-bottom: 16px;
+}
+.page-header .back {
+    font-size: 22px; color: var(--text2);
+    width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+    border-radius: 8px; background: var(--card); cursor: pointer;
+}
+.page-header h2 { font-size: 20px; font-weight: 600; flex: 1; }
+
+/* ===== 日历视图 ===== */
+.calendar { padding: 0 8px; }
+.cal-nav {
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 20px; gap: 24px;
+}
+.cal-title { font-size: 20px; font-weight: 600; min-width: 120px; text-align: center; }
+.cal-arrow {
+    font-size: 28px; color: var(--text3); cursor: pointer;
+    width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;
+    border-radius: 50%; user-select: none;
+}
+.cal-arrow:hover { background: var(--card); color: var(--text); }
+.cal-weekdays {
+    display: grid; grid-template-columns: repeat(7, 1fr);
+    text-align: center; font-size: 13px; color: var(--text3);
+    margin-bottom: 8px; padding: 0 4px;
+}
+.cal-row {
+    display: grid; grid-template-columns: repeat(7, 1fr);
+    gap: 2px; margin-bottom: 2px;
+}
+.cal-cell {
+    aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+    font-size: 16px; border-radius: 10px; text-decoration: none;
+    color: var(--text3); cursor: default;
+}
+.cal-has {
+    background: var(--text); color: #fff; font-weight: 600; cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+}
+.cal-has:hover { opacity: 0.85; }
+.cal-has.cal-today { background: var(--rmrb); box-shadow: 0 2px 8px rgba(192,57,43,0.3); }
+.cal-none { color: #ccc; }
+.cal-none.cal-today { border: 2px solid var(--rmrb); color: var(--text2); font-weight: 600; }
+.cal-empty { visibility: hidden; }
+.cal-legend {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    margin-top: 16px; font-size: 13px; color: var(--text3);
+}
+.cal-dot-active { width: 10px; height: 10px; border-radius: 50%; background: var(--text); display: inline-block; }
+.cal-dot-none { width: 10px; height: 10px; border-radius: 50%; background: #ddd; display: inline-block; }
+
+/* ===== 文章列表 ===== */
+.section-group { margin-bottom: 24px; }
+.section-header {
+    font-size: 13px; font-weight: 600; color: var(--text2);
+    background: var(--card); padding: 8px 12px; border-radius: 6px; margin-bottom: 6px;
+}
+.art-item {
+    display: block; padding: 12px 12px;
+    border-bottom: 1px solid #f0f0f0; cursor: pointer;
+}
+.art-item .art-title { font-size: 15px; font-weight: 500; line-height: 1.5; margin-bottom: 4px; }
+.art-item .art-meta { font-size: 12px; color: var(--text3); }
+
+/* ===== 阅读器 ===== */
+.reader-page { padding: 24px 18px 60px; }
+.reader-nav { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; }
+.reader-nav .back {
+    font-size: 20px; color: var(--text2);
+    padding: 6px 10px; border-radius: 8px; background: var(--card); cursor: pointer;
+}
+.reader-nav .back-label { font-size: 15px; color: var(--text2); }
+.reader-section-badge {
+    display: inline-block; font-size: 12px; font-weight: 500;
+    color: #fff; background: var(--st); padding: 3px 12px;
+    border-radius: 4px; margin-bottom: 12px; letter-spacing: 1px;
+}
+.reader-title { font-size: 24px; font-weight: 700; line-height: 1.4; margin-bottom: 10px; }
+.reader-meta { font-size: 14px; color: var(--text2); margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+.reader-body { font-size: 18px; line-height: 1.85; color: var(--text); }
+.reader-body p { text-indent: 2em; margin-bottom: 1.2em; text-align: justify; }
+.reader-body img {
+    display: block; max-width: 100%; height: auto; margin: 20px auto;
+    border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+}
+.reader-body .img-caption {
+    display: block; text-align: center; font-size: 13px; color: var(--text3);
+    margin-top: -12px; margin-bottom: 20px;
+}
+.reader-body blockquote {
+    margin: 16px 0; padding: 12px 16px;
+    border-left: 3px solid var(--border);
+    background: var(--card); color: var(--text2);
+}
+.reader-body strong { font-weight: 700; }
+.reader-body em { font-style: italic; }
+
+/* ===== 首页齿轮按钮 + 气泡弹窗 ===== */
+.home-top { position: relative; text-align: right; margin-bottom: -8px; z-index: 10; }
+.gear-btn {
+    font-size: 22px; cursor: pointer; padding: 4px 8px;
+    border-radius: 50%; display: inline-block; opacity: 0.5;
+    color: var(--text2);
+}
+.gear-btn:hover { opacity: 0.8; background: var(--card); }
+.gear-popup {
+    position: absolute; top: 40px; right: 0;
+    background: #fff; border: 1px solid var(--border);
+    border-radius: 12px; padding: 12px 14px; min-width: 180px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.12); text-align: center;
+}
+.gear-modes {
+    display: flex; gap: 4px; justify-content: center;
+}
+.gear-modes span {
+    display: inline-block; padding: 6px 10px; border-radius: 8px;
+    font-size: 13px; color: var(--text); cursor: pointer;
+    white-space: nowrap;
+}
+.gear-modes span:hover { background: var(--card); }
+.gear-modes span.gear-on { background: var(--text); color: #fff; }
+
+/* 黑夜模式齿轮 */
+body.dark .gear-btn { color: #aaa; }
+body.dark .gear-btn:hover { background: #2a2a2a; }
+body.dark .gear-popup { background: #2a2a2a; border-color: #333; }
+body.dark .gear-modes span { color: #aaa; }
+body.dark .gear-modes span:hover { background: #333; }
+body.dark .gear-modes span.gear-on { background: #555; color: #fff; }
+
+/* 黑夜模式日历 —— 高对比、清晰区分有无报 */
+body.dark .cal-title { color: #ccc; }
+body.dark .cal-arrow { color: #888; }
+body.dark .cal-arrow:hover { background: #2a2a2a; color: #fff; }
+body.dark .cal-weekdays { color: #777; }
+body.dark .cal-has { background: #3b6fb6; color: #fff; font-weight: 600; }
+body.dark .cal-has.cal-today { background: #d94040; color: #fff; }
+body.dark .cal-none { color: #555; }
+body.dark .cal-none.cal-today { border: 2px solid #d94040; color: #999; font-weight: 600; }
+body.dark .cal-legend { color: #777; }
+body.dark .cal-dot-active { background: #3b6fb6; }
+body.dark .cal-dot-none { background: #444; }
+
+/* ===== 阅读器设置面板 ===== */
+.reader-settings-btn {
+    margin-left: auto; font-size: 14px; font-weight: 700;
+    color: var(--text2); cursor: pointer; padding: 4px 10px;
+    border-radius: 6px; border: 1px solid var(--border);
+    background: var(--card); letter-spacing: 1px;
+}
+.reader-settings-panel {
+    background: var(--card); border-radius: 10px; padding: 12px 14px;
+    margin-bottom: 16px; border: 1px solid var(--border);
+}
+.rs-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.rs-row:last-child { margin-bottom: 0; }
+.rs-label { font-size: 13px; color: var(--text3); min-width: 32px; }
+.rs-btn {
+    font-size: 13px; padding: 4px 10px; border-radius: 6px;
+    background: #fff; color: var(--text2); cursor: pointer;
+    border: 1px solid var(--border);
+}
+.rs-btn.rs-on { background: var(--text); color: #fff; border-color: var(--text); }
+
+/* ===== 黑夜模式（全局） ===== */
+body.dark { background: #1a1a1a; }
+body.dark .home-page h1,
+body.dark .page-header h2,
+body.dark .reader-title { color: #e0e0e0; }
+body.dark .home-page .subtitle,
+body.dark .reader-meta,
+body.dark .page-header .back,
+body.dark .back-label { color: #999; }
+body.dark .reader-body { color: #c8c8c8; }
+body.dark .reader-nav .back,
+body.dark .global-settings-btn,
+body.dark .reader-settings-btn { background: #2a2a2a; color: #aaa; border-color: #333; }
+body.dark .reader-section-badge { background: #444; }
+body.dark .reader-settings-panel,
+body.dark .global-settings-panel { background: #2a2a2a; border-color: #333; }
+body.dark .rs-btn { background: #333; color: #aaa; border-color: #444; }
+body.dark .rs-btn.rs-on { background: #666; color: #fff; }
+body.dark .reader-body blockquote { background: #2a2a2a; border-left-color: #444; color: #aaa; }
+body.dark .section-header { background: #2a2a2a; color: #aaa; }
+body.dark .art-item { border-bottom-color: #2a2a2a; }
+body.dark .art-item .art-title { color: #ccc; }
+body.dark .reader-meta { border-bottom-color: #333; }
+body.dark .cal-title { color: #ccc; }
+body.dark .cal-arrow { color: #888; }
+body.dark .cal-arrow:hover { background: #2a2a2a; color: #ccc; }
+body.dark .cal-cell { color: #555; }
+body.dark .cal-none { color: #444; }
+body.dark .cal-none.cal-today { border-color: #888; color: #aaa; }
+body.dark .cal-legend { color: #666; }
+body.dark .cal-dot-none { background: #444; }
+body.dark .reader-body img { box-shadow: 0 2px 12px rgba(255,255,255,0.05); }
+body.dark .loading { color: #666; }
+body.dark .empty { color: #666; }
+
+/* ===== 护眼模式（全局） ===== */
+body.eye { background: #f5f0e6; }
+body.eye .reader-body { color: #4a3f35; }
+body.eye .reader-title { color: #3d3228; }
+body.eye .home-page h1 { color: #3d3228; }
+body.eye .reader-body blockquote { background: #ede6d8; border-left-color: #c4b896; }
+body.eye .reader-settings-panel,
+body.eye .global-settings-panel { background: #ede6d8; border-color: #d5ccb8; }
+body.eye .section-header { background: #ede6d8; }
+
+/* ===== 加载 / 错误 / 空状态 ===== */
+.loading {
+    text-align: center; padding: 60px 20px; color: var(--text3); font-size: 15px;
+}
+.loading::before {
+    content: ''; display: block; width: 24px; height: 24px;
+    margin: 0 auto 12px; border: 2px solid var(--border);
+    border-top-color: var(--text3); border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.error {
+    text-align: center; padding: 60px 20px; color: #c0392b; font-size: 15px;
+}
+.error .retry-btn, .retry-btn {
+    display: inline-block; margin-top: 12px; padding: 8px 24px;
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+    font-size: 14px; cursor: pointer; color: var(--text);
+    text-decoration: none;
+}
+.retry-btn:hover { background: #eee; }
+
+.empty {
+    text-align: center; padding: 60px 20px; color: var(--text3); font-size: 15px;
+}
+.empty small {
+    display: block; margin-top: 8px; font-size: 13px; color: #bbb;
+}
+
+/* ===== 响应式 ===== */
+@media (max-width: 480px) {
+    .home-page { padding: 32px 16px 0; }
+    .page { padding: 16px 16px 0; }
+    .reader-page { padding: 16px 14px 40px; }
+    .reader-body { font-size: 17px; }
+    .reader-title { font-size: 22px; }
+    .np-card .name { font-size: 17px; }
+    .np-card .name small { font-size: 12px; }
+}
+
+@media (max-width: 360px) {
+    .newspaper-grid { gap: 10px; }
+    .np-card { border-radius: 8px; }
+    .reader-body { font-size: 16px; }
+    .reader-title { font-size: 20px; }
+}
