@@ -1,0 +1,1007 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>读报 - 求是杂志测试</title>
+<style>
+/* ========================================
+   读报 App - 全部样式（从 app.css 复制）
+   ======================================== */
+:root {
+    --bg: #ffffff;
+    --card: #f8f8f8;
+    --text: #1a1a1a;
+    --text2: #666666;
+    --text3: #999999;
+    --border: #e8e8e8;
+    --st: #1a5276;
+    --zz: #6b3a2e;
+    --rmrb: #c0392b;
+    --nfrb: #2c7a3a;
+    --qs: #8b1a1a; /* 求是杂志 - 深红 */
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+    font-family: "PingFang SC","Noto Sans SC","Microsoft YaHei",sans-serif;
+    background: var(--bg); color: var(--text);
+    -webkit-font-smoothing: antialiased;
+}
+a { text-decoration: none; color: inherit; }
+
+/* 首页 */
+.home-page { padding: 48px 20px 0; }
+.home-page h1 { font-size: 28px; font-weight: 700; margin-bottom: 4px; }
+.home-page .subtitle { font-size: 14px; color: var(--text3); margin-bottom: 28px; }
+.newspaper-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.np-card {
+    aspect-ratio: 1.3; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+.np-card .name {
+    color: #fff; font-size: 20px; font-weight: 600;
+    text-align: center; line-height: 1.5; letter-spacing: 1px;
+}
+.np-card .name small { display: block; font-size: 13px; font-weight: 400; opacity: .85; margin-top: 2px; }
+.np-st { background: linear-gradient(145deg,var(--st),#2c6a96); }
+.np-zz { background: linear-gradient(145deg,var(--zz),#8b5545); }
+.np-rmrb { background: linear-gradient(145deg,var(--rmrb),#e0513e); }
+.np-nfrb { background: linear-gradient(145deg,var(--nfrb),#3d9e4e); }
+.np-qs { background: linear-gradient(145deg,#8b1a1a,#b22222); }
+
+/* 页面通用 */
+.page { padding: 24px 20px 0; }
+.page-header {
+    display: flex; align-items: center; gap: 12px;
+    padding-bottom: 16px; border-bottom: 1px solid var(--border); margin-bottom: 16px;
+}
+.page-header .back {
+    font-size: 22px; color: var(--text2);
+    width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+    border-radius: 8px; background: var(--card); cursor: pointer;
+}
+.page-header h2 { font-size: 20px; font-weight: 600; flex: 1; }
+
+/* 文章列表 */
+.section-group { margin-bottom: 24px; }
+.section-header {
+    font-size: 13px; font-weight: 600; color: var(--text2);
+    background: var(--card); padding: 8px 12px; border-radius: 6px; margin-bottom: 6px;
+}
+.art-item {
+    display: block; padding: 12px 12px;
+    border-bottom: 1px solid #f0f0f0; cursor: pointer;
+}
+.art-item .art-title { font-size: 15px; font-weight: 500; line-height: 1.5; margin-bottom: 4px; }
+.art-item .art-meta { font-size: 12px; color: var(--text3); }
+
+/* 期数列表 - 卡片式 */
+.issue-list { padding: 0 4px; }
+.issue-item {
+    display: block; padding: 16px; margin-bottom: 12px;
+    background: var(--card); border-radius: 10px;
+    border: 1px solid var(--border); cursor: pointer;
+    transition: background 0.15s;
+}
+.issue-item:hover { background: #f0f0f0; }
+.issue-item .issue-title { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+.issue-item .issue-meta { font-size: 13px; color: var(--text3); }
+
+/* 阅读器 */
+.reader-page { padding: 24px 18px 60px; }
+.reader-nav { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; }
+.reader-nav .back {
+    font-size: 20px; color: var(--text2);
+    padding: 6px 10px; border-radius: 8px; background: var(--card); cursor: pointer;
+}
+.reader-nav .back-label { font-size: 15px; color: var(--text2); }
+.reader-section-badge {
+    display: inline-block; font-size: 12px; font-weight: 500;
+    color: #fff; background: var(--qs); padding: 3px 12px;
+    border-radius: 4px; margin-bottom: 12px; letter-spacing: 1px;
+}
+.reader-title { font-size: 24px; font-weight: 700; line-height: 1.4; margin-bottom: 10px; }
+.reader-meta { font-size: 14px; color: var(--text2); margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+.reader-body { font-size: 18px; line-height: 1.85; color: var(--text); }
+.reader-body p { text-indent: 2em; margin-bottom: 1.2em; text-align: justify; }
+.reader-body img {
+    display: block; max-width: 100%; height: auto; margin: 20px auto;
+    border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+}
+.reader-body blockquote {
+    margin: 16px 0; padding: 12px 16px;
+    border-left: 3px solid var(--border);
+    background: var(--card); color: var(--text2);
+}
+.reader-body strong { font-weight: 700; }
+
+/* 齿轮按钮 + 气泡弹窗 */
+.home-top { position: relative; text-align: right; margin-bottom: -8px; z-index: 10; }
+.gear-btn {
+    font-size: 22px; cursor: pointer; padding: 4px 8px;
+    border-radius: 50%; display: inline-block; opacity: 0.5;
+    color: var(--text2);
+}
+.gear-btn:hover { opacity: 0.8; background: var(--card); }
+.gear-popup {
+    position: absolute; top: 40px; right: 0;
+    background: #fff; border: 1px solid var(--border);
+    border-radius: 12px; padding: 12px 14px; min-width: 180px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.12); text-align: center;
+}
+.gear-modes { display: flex; gap: 4px; justify-content: center; }
+.gear-modes span {
+    display: inline-block; padding: 6px 10px; border-radius: 8px;
+    font-size: 13px; color: var(--text); cursor: pointer; white-space: nowrap;
+}
+.gear-modes span:hover { background: var(--card); }
+.gear-modes span.gear-on { background: var(--text); color: #fff; }
+
+/* 阅读器设置面板 */
+.reader-settings-btn {
+    margin-left: auto; font-size: 14px; font-weight: 700;
+    color: var(--text2); cursor: pointer; padding: 4px 10px;
+    border-radius: 6px; border: 1px solid var(--border);
+    background: var(--card); letter-spacing: 1px;
+}
+.reader-settings-panel {
+    background: var(--card); border-radius: 10px; padding: 12px 14px;
+    margin-bottom: 16px; border: 1px solid var(--border);
+}
+.rs-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.rs-row:last-child { margin-bottom: 0; }
+.rs-label { font-size: 13px; color: var(--text3); min-width: 32px; }
+.rs-btn {
+    font-size: 13px; padding: 4px 10px; border-radius: 6px;
+    background: #fff; color: var(--text2); cursor: pointer;
+    border: 1px solid var(--border);
+}
+.rs-btn.rs-on { background: var(--text); color: #fff; border-color: var(--text); }
+
+/* 黑夜模式 */
+body.dark { background: #1a1a1a; }
+body.dark .home-page h1,
+body.dark .page-header h2,
+body.dark .reader-title { color: #e0e0e0; }
+body.dark .home-page .subtitle,
+body.dark .reader-meta,
+body.dark .page-header .back,
+body.dark .back-label { color: #999; }
+body.dark .reader-body { color: #c8c8c8; }
+body.dark .reader-nav .back,
+body.dark .reader-settings-btn { background: #2a2a2a; color: #aaa; border-color: #333; }
+body.dark .reader-section-badge { background: #444; }
+body.dark .reader-settings-panel { background: #2a2a2a; border-color: #333; }
+body.dark .rs-btn { background: #333; color: #aaa; border-color: #444; }
+body.dark .rs-btn.rs-on { background: #666; color: #fff; }
+body.dark .section-header { background: #2a2a2a; color: #aaa; }
+body.dark .art-item { border-bottom-color: #2a2a2a; }
+body.dark .art-item .art-title { color: #ccc; }
+body.dark .reader-meta { border-bottom-color: #333; }
+body.dark .issue-item { background: #2a2a2a; border-color: #333; }
+body.dark .issue-item:hover { background: #333; }
+body.dark .issue-item .issue-title { color: #ccc; }
+body.dark .gear-btn { color: #aaa; }
+body.dark .gear-btn:hover { background: #2a2a2a; }
+body.dark .gear-popup { background: #2a2a2a; border-color: #333; }
+body.dark .gear-modes span { color: #aaa; }
+body.dark .gear-modes span:hover { background: #333; }
+body.dark .gear-modes span.gear-on { background: #555; color: #fff; }
+body.dark .loading { color: #666; }
+body.dark .empty { color: #666; }
+
+/* 护眼模式 */
+body.eye { background: #f5f0e6; }
+body.eye .reader-body { color: #4a3f35; }
+body.eye .reader-title { color: #3d3228; }
+body.eye .home-page h1 { color: #3d3228; }
+body.eye .reader-settings-panel { background: #ede6d8; border-color: #d5ccb8; }
+body.eye .section-header { background: #ede6d8; }
+body.eye .issue-item { background: #ede6d8; border-color: #d5ccb8; }
+
+/* 加载 / 错误 / 空状态 */
+.loading {
+    text-align: center; padding: 60px 20px; color: var(--text3); font-size: 15px;
+}
+.loading::before {
+    content: ''; display: block; width: 24px; height: 24px;
+    margin: 0 auto 12px; border: 2px solid var(--border);
+    border-top-color: var(--text3); border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.error { text-align: center; padding: 60px 20px; color: #c0392b; font-size: 15px; }
+.retry-btn {
+    display: inline-block; margin-top: 12px; padding: 8px 24px;
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+    font-size: 14px; cursor: pointer; color: var(--text); text-decoration: none;
+}
+.retry-btn:hover { background: #eee; }
+.empty { text-align: center; padding: 60px 20px; color: var(--text3); font-size: 15px; }
+.empty small { display: block; margin-top: 8px; font-size: 13px; color: #bbb; }
+
+/* 响应式 */
+@media (max-width: 480px) {
+    .home-page { padding: 32px 16px 0; }
+    .page { padding: 16px 16px 0; }
+    .reader-page { padding: 16px 14px 40px; }
+    .reader-body { font-size: 17px; }
+    .reader-title { font-size: 22px; }
+    .np-card .name { font-size: 17px; }
+    .np-card .name small { font-size: 12px; }
+}
+@media (max-width: 360px) {
+    .newspaper-grid { gap: 10px; }
+    .np-card { border-radius: 8px; }
+    .reader-body { font-size: 16px; }
+    .reader-title { font-size: 20px; }
+}
+/* 调试面板 */
+#debug {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    max-height: 40vh; overflow-y: auto;
+    background: #000; color: #0f0; font-family: monospace;
+    font-size: 12px; padding: 8px; z-index: 9999;
+    border-top: 2px solid #0f0;
+}
+#debug .err { color: #f44; }
+#debug .ok { color: #0f0; }
+#debug-toggle {
+    position: fixed; bottom: 8px; right: 8px; z-index: 10000;
+    background: #000; color: #0f0; border: 1px solid #0f0;
+    padding: 4px 8px; font-size: 12px; cursor: pointer; border-radius: 4px;
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="debug"></div>
+<button id="debug-toggle" onclick="document.getElementById('debug').style.display=document.getElementById('debug').style.display==='none'?'block':'none'">LOG</button>
+
+<script>
+/* ---- 调试日志 ---- */
+const _dbg = document.getElementById('debug');
+function log(msg, type) {
+    const d = document.createElement('div');
+    d.className = type || '';
+    d.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+    _dbg.appendChild(d);
+    _dbg.scrollTop = _dbg.scrollHeight;
+    console.log(msg);
+}
+window.onerror = function(msg, src, line) { log(`JS错误: ${msg} (${src}:${line})`, 'err'); };
+window.addEventListener('unhandledrejection', e => { log(`Promise错误: ${e.reason}`, 'err'); });
+log('页面加载完成', 'ok');
+
+/* ---- 主脚本 ---- */
+/* ========================================
+   AdapterUtils — 公共工具
+   ======================================== */
+const AdapterUtils = {
+    CORS_PROXY: location.protocol === 'file:'
+        ? 'https://api.allorigins.win/raw?url=' : '',
+    _proxy(url) {
+        return this.CORS_PROXY ? this.CORS_PROXY + encodeURIComponent(url) : url;
+    },
+    async sleep(ms) { return new Promise(r => setTimeout(r, ms)); },
+    async fetchWithRetry(url, options = {}, retries = 2) {
+        const target = this._proxy(url);
+        log('请求: ' + url.substring(0, 80));
+        for (let i = 0; i <= retries; i++) {
+            try {
+                const resp = await fetch(target, options);
+                if (resp.ok) { log('✓ ' + resp.status + ' ' + url.substring(0, 60), 'ok'); return resp; }
+                log('✗ HTTP ' + resp.status, 'err');
+                if (i < retries) await this.sleep(300);
+            } catch (e) {
+                log('✗ 网络错误: ' + e.message, 'err');
+                if (i < retries) await this.sleep(300);
+                else throw e;
+            }
+        }
+        throw new Error('Fetch failed: ' + url);
+    },
+    async fetchBatch(tasks, concurrency = 6) {
+        const results = [];
+        for (let i = 0; i < tasks.length; i += concurrency) {
+            const batch = tasks.slice(i, i + concurrency);
+            const r = await Promise.allSettled(batch.map(t => this.fetchWithRetry(t.url, t.options || {}, 1)));
+            results.push(...r);
+        }
+        return results;
+    },
+    async fetchText(url, options = {}) {
+        return (await this.fetchWithRetry(url, options)).text();
+    },
+    parseHTML(html) {
+        return new DOMParser().parseFromString(html, 'text/html');
+    },
+    cacheGet(key) {
+        try {
+            const raw = localStorage.getItem('np_' + key);
+            if (!raw) return null;
+            const e = JSON.parse(raw);
+            if (Date.now() - e.ts > 30 * 60 * 1000) { localStorage.removeItem('np_' + key); return null; }
+            return e.data;
+        } catch { return null; }
+    },
+    cacheSet(key, data) {
+        try { localStorage.setItem('np_' + key, JSON.stringify({ ts: Date.now(), data })); } catch {}
+    }
+};
+
+/* ========================================
+   Reader — 阅读器渲染 & 正文清洗
+   ======================================== */
+const Reader = {
+    REMOVE_TAGS: new Set(['script','style','iframe','nav','header','footer','aside']),
+    KEEP_TAGS: new Set(['p','h1','h2','h3','h4','h5','h6','img','blockquote','ul','ol','li','br','hr','strong','em','b','i','u','span','a','sub','sup','pre','code']),
+    SKIP_TAGS: new Set(['html','head','body','#document']),
+    FILTER_KEYWORDS: [
+        '上一篇','下一篇','相关新闻','相关阅读','推荐阅读','责任编辑','责编','版面编辑','本版编辑',
+        '版权','ICP备','京ICP','订阅电话','本报邮箱','分享到','扫描二维码','点击下载','返回目录',
+        'PDF下载','打印本页','关闭窗口','字体：','放大','缩小','默认','全文复制',
+        '广告','彩票','福彩','体彩','开奖','投注','遗失声明','注销公告','清算公告','减资公告',
+        '债权申报','环境影响评价','环评公示','网站编辑','校对','审校','审核',
+    ],
+    BLOCK_KEYWORDS: ['广告','专题','专版','公告','声明'],
+    _settings: { fontSize: 2, lineHeight: 2, dark: false, eye: false },
+    _fontSizes: ['15px','17px','19px','21px'],
+    _lineHeights: ['1.65','1.85','2.05','2.25'],
+
+    cleanBody(html, baseUrl) {
+        if (!html || typeof html !== 'string') return '';
+        try {
+            const doc = new DOMParser().parseFromString(html, 'text/html');
+            this.REMOVE_TAGS.forEach(tag => { doc.querySelectorAll(tag).forEach(el => el.remove()); });
+            this._removeFilteredElements(doc.body);
+            this._cleanNode(doc.body);
+            this._processImages(doc, baseUrl);
+            doc.querySelectorAll('p').forEach(p => {
+                if (!(p.textContent||'').trim() && !p.querySelector('img') && !p.querySelector('br')) p.remove();
+            });
+            doc.querySelectorAll('p').forEach(p => {
+                for (const c of p.childNodes) {
+                    if (c.nodeType === 3) { c.textContent = c.textContent.replace(/^[\s\u3000&\u2003]+/, ''); break; }
+                    if (c.nodeType === 1 && (c.textContent||'').trim()) break;
+                }
+            });
+            doc.querySelectorAll('p').forEach(p => {
+                const t = (p.textContent||'').trim();
+                for (const kw of this.BLOCK_KEYWORDS) { if (t === kw || t === '第'+kw) { p.remove(); break; } }
+            });
+            doc.querySelectorAll('img').forEach(img => {
+                const src = img.getAttribute('src') || '';
+                if (src.includes('zxcode') || src.includes('qrcode')) img.remove();
+            });
+            return (doc.body.innerHTML || '').replace(/\n{3,}/g, '\n\n').trim();
+        } catch { return this._fallbackClean(html); }
+    },
+    _removeFilteredElements(root) {
+        root.querySelectorAll('p,div,li,td,span').forEach(el => {
+            if (el.tagName === 'DIV' && el.querySelectorAll('p,img,h1,h2,h3').length) return;
+            if (el.tagName === 'SPAN' && el.querySelectorAll('*').length) return;
+            const t = (el.textContent||'').trim();
+            if (t.length < 80) { for (const kw of this.FILTER_KEYWORDS) { if (t.includes(kw)) { el.remove(); return; } } }
+        });
+        root.querySelectorAll('a').forEach(a => {
+            const t = (a.textContent||'').trim();
+            if (t.length < 30) {
+                for (const kw of this.FILTER_KEYWORDS) {
+                    if (t.includes(kw)) {
+                        const p = a.closest('p,div,li');
+                        if (p && (p.textContent||'').trim().length < 100) p.remove(); else a.remove();
+                        return;
+                    }
+                }
+            }
+        });
+    },
+    _cleanNode(node) {
+        if (!node || this.SKIP_TAGS.has(node.nodeName?.toLowerCase())) {
+            Array.from(node.childNodes||[]).forEach(c => this._cleanNode(c)); return;
+        }
+        if (node.nodeType === 3) return;
+        const tag = node.nodeName?.toLowerCase();
+        if (this.KEEP_TAGS.has(tag)) {
+            if (tag === 'img') return;
+            if (tag === 'a') { const h = node.getAttribute('href'); while (node.attributes.length) node.removeAttribute(node.attributes[0].name); if (h) node.setAttribute('href', h); }
+            else if (tag === 'span') { const s = node.getAttribute('style'); while (node.attributes.length) node.removeAttribute(node.attributes[0].name); if (s) node.setAttribute('style', s); }
+            else { while (node.attributes.length) node.removeAttribute(node.attributes[0].name); }
+            Array.from(node.childNodes).forEach(c => this._cleanNode(c));
+        } else {
+            const p = node.parentNode; const children = Array.from(node.childNodes);
+            if (p) { children.forEach(c => { p.insertBefore(c, node); this._cleanNode(c); }); p.removeChild(node); }
+        }
+    },
+    _processImages(doc, baseUrl) {
+        doc.querySelectorAll('img').forEach(img => {
+            let src = img.getAttribute('src') || img.getAttribute('data-src') || '';
+            if (!src) { img.remove(); return; }
+            if (!/^https?:\/\//.test(src) && !src.startsWith('data:')) {
+                try { src = new URL(src, baseUrl).href; } catch { img.remove(); return; }
+            }
+            while (img.attributes.length) img.removeAttribute(img.attributes[0].name);
+            img.setAttribute('src', src);
+            img.setAttribute('loading', 'lazy');
+            img.setAttribute('style', 'max-width:100%;height:auto;display:block;margin:16px auto');
+        });
+    },
+    _fallbackClean(html) {
+        let text = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi,'').replace(/<style[^>]*>[\s\S]*?<\/style>/gi,'')
+            .replace(/<br\s*\/?>/gi,'\n').replace(/<[^>]+>/g,'\n').replace(/&nbsp;/g,' ');
+        return text.split('\n').map(l => l.trim()).filter(l => {
+            if (!l || l.length < 5) return false;
+            for (const kw of this.FILTER_KEYWORDS) { if (l.includes(kw) && l.length < 80) return false; }
+            return true;
+        }).map(l => `<p>${l}</p>`).join('\n');
+    },
+    applyTheme() {
+        document.body.classList.toggle('dark', this._settings.dark);
+        document.body.classList.toggle('eye', this._settings.eye);
+    },
+    render(article) {
+        const s = this._settings;
+        const badge = article.section ? `<div class="reader-section-badge">${this._esc(article.section)}</div>` : '';
+        return `
+            <div class="reader-page">
+                <div class="reader-nav">
+                    <span class="back" data-action="back">←</span>
+                    <span class="back-label">${this._esc(article.date||'')}</span>
+                    <span class="reader-settings-btn" data-action="toggle-settings">Aa</span>
+                </div>
+                <div class="reader-settings-panel" style="display:none">
+                    <div class="rs-row"><span class="rs-label">字号</span>
+                        ${['小','中','大','特大'].map((l,i) => `<span class="rs-btn${s.fontSize===i?' rs-on':''}" data-action="rs-font" data-val="${i}">${l}</span>`).join('')}
+                    </div>
+                    <div class="rs-row"><span class="rs-label">行距</span>
+                        ${['紧凑','标准','宽松','更宽'].map((l,i) => `<span class="rs-btn${s.lineHeight===i?' rs-on':''}" data-action="rs-line" data-val="${i}">${l}</span>`).join('')}
+                    </div>
+                    <div class="rs-row"><span class="rs-label">模式</span>
+                        <span class="rs-btn${!s.dark&&!s.eye?' rs-on':''}" data-action="rs-mode" data-val="light">白天</span>
+                        <span class="rs-btn${s.dark?' rs-on':''}" data-action="rs-mode" data-val="dark">黑夜</span>
+                        <span class="rs-btn${s.eye?' rs-on':''}" data-action="rs-mode" data-val="eye">护眼</span>
+                    </div>
+                </div>
+                ${badge}
+                <h1 class="reader-title">${this._esc(article.title||'无标题')}</h1>
+                <div class="reader-meta">${article.author?this._esc(article.author)+' · ':''}${this._esc(article.date||'')}</div>
+                <div class="reader-body" style="font-size:${this._fontSizes[s.fontSize]};line-height:${this._lineHeights[s.lineHeight]}">
+                    ${article.bodyHtml||'<p style="text-indent:0;color:var(--text3)">暂无内容</p>'}
+                </div>
+            </div>`;
+    },
+    _esc(s) { if (!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+};
+
+/* ========================================
+   求是杂志适配器
+   三级结构: 目录页(年份列表) → 年份页(期数列表) → 期数页(文章列表) → 文章
+   ======================================== */
+class QiushiAdapter {
+    constructor() {
+        this.BASE = 'https://www.qstheory.cn';
+        // 在线读刊目录页（列出所有年份）
+        this.DIR_URL = 'https://www.qstheory.cn/qs/mulu.htm';
+        // 年份索引：year → { url, issues }
+        this._yearIndex = null;
+    }
+
+    /* ---- 第一级：获取年份列表 ---- */
+    async getYears() {
+        const cached = AdapterUtils.cacheGet('qs_years');
+        if (cached) { log('getYears: 命中缓存, ' + cached.length + '年', 'ok'); this._yearIndex = cached; return cached; }
+
+        log('getYears: 拉取目录页...');
+        const html = await AdapterUtils.fetchText(this.DIR_URL);
+        log('getYears: HTML长度 ' + html.length);
+        const doc = AdapterUtils.parseHTML(html);
+        const years = [];
+
+        // 目录页结构: <div class="book"><a href="../20251231/uuid/c.html"><img ...></a></div>
+        //             <div class="booktitle"><a href="...">2026年</a></div>
+        doc.querySelectorAll('.booktitle a').forEach(a => {
+            const text = (a.textContent || '').trim();
+            const m = text.match(/(\d{4})年/);
+            if (!m) return;
+            const year = m[1];
+            let href = a.getAttribute('href') || '';
+            // 相对路径转绝对
+            if (href && !href.startsWith('http')) {
+                if (href.startsWith('../')) href = href.substring(3);
+                if (!href.startsWith('/')) href = '/' + href;
+                href = this.BASE + href;
+            }
+            years.push({ year, url: href });
+        });
+
+        // 按年份倒序
+        years.sort((a, b) => parseInt(b.year) - parseInt(a.year));
+        log('getYears: 解析到 ' + years.length + '个年份: ' + years.map(y=>y.year).join(', '), 'ok');
+        this._yearIndex = years;
+        AdapterUtils.cacheSet('qs_years', years);
+        return years;
+    }
+
+    /* ---- 第二级：获取某年的期数列表（同时提取每期文章，零额外请求） ---- */
+    async getIssues(year) {
+        if (!this._yearIndex) await this.getYears();
+        const yearEntry = (this._yearIndex || []).find(y => y.year === String(year));
+        if (!yearEntry || !yearEntry.url) return [];
+
+        const cacheKey = 'qs_issues_' + year;
+        const cached = AdapterUtils.cacheGet(cacheKey);
+        if (cached) { log('getIssues(' + year + '): 命中缓存', 'ok'); return cached; }
+
+        log('getIssues(' + year + '): 拉取年份页...');
+        const html = await AdapterUtils.fetchText(yearEntry.url);
+        log('getIssues(' + year + '): HTML长度 ' + html.length);
+        const doc = AdapterUtils.parseHTML(html);
+        const issues = [];
+
+        // 年份页结构:
+        // <p><a href="..."><strong>《求是》2026年第1期</strong></a></p>
+        // <p><a href="article1">标题1</a> /作者1</p>
+        // <p><a href="article2">标题2</a> /作者2</p>
+        // <p><a href="..."><strong>《求是》2026年第2期</strong></a></p>
+        // ...
+        // 一次遍历同时提取期数和文章
+        const paragraphs = doc.querySelectorAll('#detailContent p');
+        let currentIssue = null;
+
+        paragraphs.forEach(p => {
+            const links = p.querySelectorAll('a[href]');
+            if (!links.length) return;
+
+            const firstLink = links[0];
+            const title = (firstLink.textContent || '').trim();
+            let href = firstLink.getAttribute('href') || '';
+            if (href.includes('ebook.qstheory.cn') || href.includes('mulu.htm')) return;
+
+            // 相对路径转绝对
+            if (href && !href.startsWith('http')) {
+                if (href.startsWith('../')) href = href.substring(3);
+                if (!href.startsWith('/')) href = '/' + href;
+                href = this.BASE + href;
+            }
+
+            const urlMatch = href.match(/qstheory\.cn\/(\d{8})\/([a-f0-9]+)\/c\.html/);
+            if (!urlMatch) return;
+
+            // 判断是期数标题还是文章
+            const issueMatch = title.match(/《求是》\s*(\d{4}年第\d+期)/);
+            if (issueMatch) {
+                // 这是一个新的期数
+                currentIssue = {
+                    date: issueMatch[1],
+                    issue: issueMatch[1],
+                    articleCount: null,
+                    _issueUrl: href,
+                    _publishDate: urlMatch[1],
+                    _uuid: urlMatch[2],
+                    _articles: [],  // 该期的文章列表
+                };
+                issues.push(currentIssue);
+            } else if (currentIssue && title.length >= 2) {
+                // 这是当前期的一篇文章
+                let author = '';
+                const pText = p.textContent || '';
+                const am = pText.match(/\/\s*([^\n<]+)/);
+                if (am) author = am[1].trim().replace(/\s+/g, '');
+
+                currentIssue._articles.push({
+                    id: `${urlMatch[1]}::${urlMatch[2]}`,
+                    title, author,
+                    section: '', wordCount: null,
+                });
+            }
+        });
+
+        // 按期号倒序
+        issues.sort((a, b) => {
+            const nA = parseInt(a.issue.match(/第(\d+)期/)?.[1] || '0');
+            const nB = parseInt(b.issue.match(/第(\d+)期/)?.[1] || '0');
+            return nB - nA;
+        });
+
+        // 同时缓存每期的文章列表
+        let totalArts = 0;
+        issues.forEach(iss => {
+            if (iss._articles && iss._articles.length) {
+                totalArts += iss._articles.length;
+                AdapterUtils.cacheSet('qs_arts_' + iss.date, iss._articles);
+            }
+        });
+
+        log('getIssues(' + year + '): ' + issues.length + '期, ' + totalArts + '篇文章', 'ok');
+        AdapterUtils.cacheSet(cacheKey, issues);
+        return issues;
+    }
+
+    /* ---- 第三级：获取某期的文章列表（优先从缓存读，零请求） ---- */
+    async getArticles(issueKey) {
+        // 优先读缓存（getIssues 已经把文章一起缓存了）
+        const cacheKey = 'qs_arts_' + issueKey;
+        const cached = AdapterUtils.cacheGet(cacheKey);
+        if (cached) return cached;
+
+        // 缓存没有则需要从期数页获取
+        let issueUrl = null;
+        if (!this._yearIndex) await this.getYears();
+        for (const ye of (this._yearIndex || [])) {
+            const issCache = AdapterUtils.cacheGet('qs_issues_' + ye.year);
+            if (issCache) {
+                const found = issCache.find(i => i.date === issueKey);
+                if (found) { issueUrl = found._issueUrl; break; }
+            }
+        }
+        if (!issueUrl) {
+            const ym = issueKey.match(/(\d{4})年/);
+            if (ym) {
+                const issues = await this.getIssues(ym[1]);
+                const found = issues.find(i => i.date === issueKey);
+                if (found) issueUrl = found._issueUrl;
+            }
+        }
+        if (!issueUrl) return [];
+
+        const html = await AdapterUtils.fetchText(issueUrl);
+        const doc = AdapterUtils.parseHTML(html);
+        const articles = [];
+        const dc = doc.querySelector('#detailContent');
+        if (!dc) return [];
+
+        dc.querySelectorAll('a[href]').forEach(a => {
+            const title = (a.textContent || '').trim();
+            let href = a.getAttribute('href') || '';
+            if (href.includes('ebook.qstheory.cn') || href.includes('mulu.htm')) return;
+            if (title.includes('《求是》') && /年\s*$/.test(title)) return;
+            if (title.length < 2) return;
+            if (href && !href.startsWith('http')) {
+                if (href.startsWith('../')) href = href.substring(3);
+                if (!href.startsWith('/')) href = '/' + href;
+                href = this.BASE + href;
+            }
+            const um = href.match(/qstheory\.cn\/(\d{8})\/([a-f0-9]+)\/c\.html/);
+            if (!um) return;
+            let author = '';
+            const pp = a.closest('p');
+            if (pp) { const am = (pp.textContent||'').match(/\/\s*([^\n<]+)/); if (am) author = am[1].trim().replace(/\s+/g,''); }
+            articles.push({ id: `${um[1]}::${um[2]}`, title, author, section: '', wordCount: null });
+        });
+
+        AdapterUtils.cacheSet(cacheKey, articles);
+        return articles;
+    }
+
+    /* ---- 预加载：并行拉取所有年份的期数 ---- */
+    async prefetchAll() {
+        // 1. 拉目录页获取年份列表
+        const years = await this.getYears();
+        if (!years || !years.length) return;
+        // 2. 并行拉取所有年份的期数
+        await Promise.allSettled(years.map(y => this.getIssues(y.year)));
+    }
+
+    /* ---- 第四级：获取文章正文 ---- */
+    async getArticle(id) {
+        try {
+            const [publishDate, uuid] = id.split('::');
+            if (!publishDate || !uuid) return null;
+
+            const url = `${this.BASE}/${publishDate}/${uuid}/c.html`;
+            const html = await AdapterUtils.fetchText(url);
+            if (html.length < 1000) return null;
+            const doc = AdapterUtils.parseHTML(html);
+
+            // 标题
+            let title = '';
+            const h1 = doc.querySelector('.inner h1, h1');
+            if (h1) title = (h1.textContent || '').trim();
+
+            // 作者：从 .appellation 找含"作者："的
+            let author = '';
+            doc.querySelectorAll('.appellation').forEach(el => {
+                const t = (el.textContent || '').trim();
+                if (/^作者[：:]/.test(t)) author = t.replace(/^作者[：:]/, '').trim();
+            });
+
+            // 来源
+            let source = '';
+            doc.querySelectorAll('.appellation').forEach(el => {
+                const t = (el.textContent || '').trim();
+                if (/^来源[：:]/.test(t)) source = t.replace(/^来源[：:]/, '').trim();
+            });
+
+            // 日期
+            let date = '';
+            const pubtime = doc.querySelector('.pubtime');
+            if (pubtime) {
+                const dm = (pubtime.textContent || '').match(/(\d{4}-\d{2}-\d{2})/);
+                if (dm) date = dm[1];
+            }
+
+            // 正文
+            let bodyHtml = '';
+            const dc = doc.querySelector('#detailContent');
+            if (dc) bodyHtml = dc.innerHTML;
+            else { const td = doc.querySelector('.text'); if (td) bodyHtml = td.innerHTML; }
+
+            const baseUrl = url.substring(0, url.lastIndexOf('/') + 1);
+            return { title, author, date, section: source || '求是', bodyHtml: Reader.cleanBody(bodyHtml, baseUrl), images: [] };
+        } catch { return null; }
+    }
+}
+
+/* ========================================
+   APP — 路由 & 渲染
+   ======================================== */
+const APP = {
+    newspapers: [
+        { id: 'qiushi', name: '求是', subtitle: '中共中央主办 · 半月刊', color: 'qs' },
+    ],
+    cache: {},
+    _adapters: {},
+    _navToken: 0,
+
+    init() {
+        try {
+            const s = JSON.parse(localStorage.getItem('np_theme') || '{}');
+            if (s.dark !== undefined) Reader._settings.dark = s.dark;
+            if (s.eye !== undefined) Reader._settings.eye = s.eye;
+            if (s.fontSize !== undefined) Reader._settings.fontSize = s.fontSize;
+            if (s.lineHeight !== undefined) Reader._settings.lineHeight = s.lineHeight;
+        } catch {}
+        Reader.applyTheme();
+
+        document.getElementById('app').addEventListener('click', (e) => {
+            const action = e.target.closest('[data-action]');
+            if (!action) return;
+            const act = action.dataset.action;
+            if (act === 'back') history.back();
+            else if (act === 'retry') this.route();
+            else if (act === 'toggle-gear') {
+                const p = document.querySelector('.gear-popup');
+                if (!p) return;
+                if (p.style.display !== 'none') { p.style.display = 'none'; }
+                else {
+                    p.style.display = 'block';
+                    setTimeout(() => {
+                        const close = ev => { if (!ev.target.closest('.gear-popup') && !ev.target.closest('.gear-btn')) { p.style.display = 'none'; document.removeEventListener('click', close); } };
+                        document.addEventListener('click', close);
+                    }, 0);
+                }
+            }
+            else if (act === 'gear-mode') {
+                const v = action.dataset.val;
+                Reader._settings.dark = (v === 'dark'); Reader._settings.eye = (v === 'eye');
+                Reader.applyTheme(); this._saveTheme();
+                const p = document.querySelector('.gear-popup'); if (p) p.style.display = 'none';
+                this._rerender();
+            }
+            else if (act === 'toggle-settings') {
+                const p = document.querySelector('.reader-settings-panel');
+                if (p) p.style.display = p.style.display === 'none' ? 'block' : 'none';
+            }
+            else if (act === 'rs-font') {
+                Reader._settings.fontSize = parseInt(action.dataset.val);
+                const b = document.querySelector('.reader-body'); if (b) b.style.fontSize = Reader._fontSizes[Reader._settings.fontSize];
+                this._updateSettingsUI(); this._saveTheme();
+            }
+            else if (act === 'rs-line') {
+                Reader._settings.lineHeight = parseInt(action.dataset.val);
+                const b = document.querySelector('.reader-body'); if (b) b.style.lineHeight = Reader._lineHeights[Reader._settings.lineHeight];
+                this._updateSettingsUI(); this._saveTheme();
+            }
+            else if (act === 'rs-mode') {
+                const v = action.dataset.val;
+                Reader._settings.dark = (v === 'dark'); Reader._settings.eye = (v === 'eye');
+                Reader.applyTheme(); this._updateSettingsUI(); this._saveTheme();
+            }
+        });
+        window.addEventListener('hashchange', () => this.route());
+        this.route();
+
+        // 后台预加载
+        log('开始预加载...', 'ok');
+        const adapter = this.getAdapter('qiushi');
+        if (adapter) adapter.prefetchAll().then(() => log('预加载完成!', 'ok')).catch(e => log('预加载失败: ' + e.message, 'err'));
+    },
+
+    route() {
+        const hash = location.hash.slice(1) || '/';
+        log('路由: ' + hash);
+        document.getElementById('app').innerHTML = '';
+        if (hash === '/') return this.renderHome();
+
+        // 年份列表: #/paper/qiushi
+        const im = hash.match(/^\/paper\/(\w+)$/);
+        if (im) return this.renderYears(im[1]);
+
+        // 期数列表: #/paper/qiushi/2026
+        const ym = hash.match(/^\/paper\/(\w+)\/(\d{4})$/);
+        if (ym) return this.renderIssues(ym[1], ym[2]);
+
+        // 文章列表: #/paper/qiushi/issue/2026年第1期
+        const am = hash.match(/^\/paper\/(\w+)\/issue\/(.+)$/);
+        if (am) return this.renderArticles(am[1], decodeURIComponent(am[2]));
+
+        // 阅读器: #/reader/qiushi/20260115::uuid
+        const rm = hash.match(/^\/reader\/(\w+)\/(.+)$/);
+        if (rm) return this.renderReader(rm[1], rm[2]);
+
+        location.hash = '#/';
+    },
+
+    // ===== 首页 =====
+    renderHome() {
+        const s = Reader._settings;
+        document.getElementById('app').innerHTML = `
+            <div class="home-page">
+                <div class="home-top">
+                    <span class="gear-btn" data-action="toggle-gear">⚙</span>
+                    <div class="gear-popup" style="display:none">
+                        <div class="gear-row gear-modes">
+                            <span class="${!s.dark&&!s.eye?'gear-on':''}" data-action="gear-mode" data-val="light">☀ 白天</span>
+                            <span class="${s.eye?'gear-on':''}" data-action="gear-mode" data-val="eye">☕ 护眼</span>
+                            <span class="${s.dark?'gear-on':''}" data-action="gear-mode" data-val="dark">☾ 黑夜</span>
+                        </div>
+                        <div class="gear-row" style="font-size:12px;color:var(--text3);padding-top:6px;border-top:1px solid var(--border);margin-top:4px">字号行距等更多设置<br>在文章页面右上角 Aa</div>
+                    </div>
+                </div>
+                <h1>读报</h1><p class="subtitle">每日官媒精选</p>
+                <div class="newspaper-grid">
+                    ${this.newspapers.map(n => `<a class="np-card np-${n.color}" href="#/paper/${n.id}"><span class="name">${n.name}<small>${n.subtitle}</small></span></a>`).join('')}
+                </div>
+            </div>`;
+    },
+
+    // ===== 年份列表 =====
+    async renderYears(id) {
+        const paper = this.newspapers.find(n => n.id === id);
+        if (!paper) { location.hash = '#/'; return; }
+        const token = ++this._navToken;
+        this._showLoading('加载年份...');
+        log('renderYears 开始');
+
+        const adapter = this.getAdapter(id);
+        if (!adapter) { log('没有adapter', 'err'); this._showError('暂不支持'); return; }
+        let years;
+        try { years = await adapter.getYears(); } catch(e) { log('getYears异常: '+e.message, 'err'); if (token !== this._navToken) return; this._showError('加载失败'); return; }
+        if (token !== this._navToken) return;
+        log('renderYears: got ' + (years ? years.length : 0) + ' years');
+        if (!years || !years.length) { this._showEmpty(paper.name, '暂无数据', '#/'); return; }
+
+        const html = years.map(y =>
+            `<a class="issue-item" href="#/paper/${id}/${y.year}">
+                <div class="issue-title">${y.year}年</div>
+                <div class="issue-meta">《求是》${y.year}年</div>
+            </a>`
+        ).join('');
+
+        document.getElementById('app').innerHTML = `
+            <div class="page"><div class="page-header">
+                <a class="back" href="#/">←</a><h2>${paper.name}</h2>
+            </div><div class="issue-list">${html}</div></div>`;
+    },
+
+    // ===== 期数列表（某年） =====
+    async renderIssues(id, year) {
+        const paper = this.newspapers.find(n => n.id === id);
+        if (!paper) { location.hash = '#/'; return; }
+        const token = ++this._navToken;
+        this._showLoading('加载' + year + '年期数...');
+
+        const adapter = this.getAdapter(id);
+        if (!adapter) { this._showError('暂不支持'); return; }
+        let issues;
+        try { issues = await adapter.getIssues(year); } catch { if (token !== this._navToken) return; this._showError('加载失败'); return; }
+        if (token !== this._navToken) return;
+        if (!issues || !issues.length) { this._showEmpty(year + '年', '暂无期数数据', `#/paper/${id}`); return; }
+
+        const html = issues.map(iss =>
+            `<a class="issue-item" href="#/paper/${id}/issue/${encodeURIComponent(iss.date)}">
+                <div class="issue-title">${this._esc(iss.issue)}</div>
+                <div class="issue-meta">${iss._publishDate ? iss._publishDate.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3') : ''}</div>
+            </a>`
+        ).join('');
+
+        document.getElementById('app').innerHTML = `
+            <div class="page"><div class="page-header">
+                <a class="back" href="#/paper/${id}">←</a><h2>${year}年《求是》</h2>
+            </div><div class="issue-list">${html}</div></div>`;
+    },
+
+    // ===== 文章列表（某期） =====
+    async renderArticles(id, issueKey) {
+        const paper = this.newspapers.find(n => n.id === id);
+        if (!paper) { location.hash = '#/'; return; }
+        const token = ++this._navToken;
+        this._showLoading('加载文章列表...');
+
+        const ck = `qiushi:${issueKey}`;
+        let articles = this.cache[ck] || AdapterUtils.cacheGet('arts_' + ck);
+        if (!articles) {
+            const adapter = this.getAdapter(id);
+            if (!adapter) { this._showError('暂不支持'); return; }
+            try {
+                articles = await adapter.getArticles(issueKey);
+                if (token !== this._navToken) return;
+                if (articles && articles.length) { this.cache[ck] = articles; AdapterUtils.cacheSet('arts_' + ck, articles); }
+            } catch { if (token !== this._navToken) return; this._showError('加载失败'); return; }
+        }
+        if (token !== this._navToken) return;
+        if (!articles || !articles.length) { this._showEmpty(issueKey, '暂无文章', `#/paper/${id}`); return; }
+
+        const yearMatch = issueKey.match(/(\d{4})年/);
+        const backHash = yearMatch ? `#/paper/${id}/${yearMatch[1]}` : `#/paper/${id}`;
+
+        const html = articles.map(a =>
+            `<a class="art-item" href="#/reader/${id}/${encodeURIComponent(a.id)}">
+                <div class="art-title">${this._esc(a.title)}</div>
+                <div class="art-meta">${a.author ? this._esc(a.author) : ''}</div>
+            </a>`
+        ).join('');
+
+        document.getElementById('app').innerHTML = `
+            <div class="page"><div class="page-header">
+                <a class="back" href="${backHash}">←</a><h2>${this._esc(issueKey)}</h2>
+            </div><div class="article-list">${html}</div></div>`;
+    },
+
+    // ===== 阅读器 =====
+    async renderReader(id, aid) {
+        const token = ++this._navToken;
+        this._showLoading('加载文章...');
+        let articleId; try { articleId = decodeURIComponent(aid); } catch { articleId = aid; }
+        const ck = `qiushi:${articleId}`;
+        let article = this.cache[ck];
+        if (!article) {
+            const adapter = this.getAdapter(id);
+            if (!adapter) { this._showError('暂不支持'); return; }
+            try { article = await adapter.getArticle(articleId); if (token !== this._navToken) return; if (article) this.cache[ck] = article; }
+            catch { if (token !== this._navToken) return; this._showError('加载失败'); return; }
+        }
+        if (token !== this._navToken) return;
+        if (!article) { document.getElementById('app').innerHTML = Reader.render({ title: '加载失败', author: '', date: '', section: '', bodyHtml: '<p style="text-indent:0">该文章暂时无法加载</p>' }); return; }
+        document.getElementById('app').innerHTML = Reader.render(article);
+    },
+
+    // ===== 辅助 =====
+    getAdapter(id) {
+        if (this._adapters[id]) return this._adapters[id];
+        const map = { qiushi: QiushiAdapter };
+        const Cls = map[id]; if (!Cls) return null;
+        this._adapters[id] = new Cls();
+        return this._adapters[id];
+    },
+    _showLoading(msg) { document.getElementById('app').innerHTML = `<div class="loading">${msg||'加载中...'}</div>`; },
+    _showError(msg, back) {
+        const btn = back ? `<a class="retry-btn" href="${back}">返回</a>` : `<span class="retry-btn" data-action="retry">点击重试</span>`;
+        document.getElementById('app').innerHTML = `<div class="error">${msg}<br>${btn}</div>`;
+    },
+    _showEmpty(title, msg, back) {
+        document.getElementById('app').innerHTML = `<div class="page"><div class="page-header"><a class="back" href="${back||'#/'}">←</a><h2>${title}</h2></div><div class="empty">${msg}<br><small>请检查网络连接后重试</small></div><div style="text-align:center;margin-top:16px"><span class="retry-btn" data-action="retry">点击重试</span></div></div>`;
+    },
+    _esc(s) { if (!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); },
+    _rerender() { document.getElementById('app').innerHTML = ''; this.route(); },
+    _updateSettingsUI() {
+        const s = Reader._settings;
+        document.querySelectorAll('.rs-btn').forEach(b => {
+            const act = b.dataset.action, val = b.dataset.val;
+            if (act === 'rs-font') b.classList.toggle('rs-on', parseInt(val) === s.fontSize);
+            else if (act === 'rs-line') b.classList.toggle('rs-on', parseInt(val) === s.lineHeight);
+            else if (act === 'rs-mode') b.classList.toggle('rs-on', (val==='dark'&&s.dark)||(val==='eye'&&s.eye)||(val==='light'&&!s.dark&&!s.eye));
+        });
+    },
+    _saveTheme() {
+        const s = Reader._settings;
+        try { localStorage.setItem('np_theme', JSON.stringify({dark:s.dark,eye:s.eye,fontSize:s.fontSize,lineHeight:s.lineHeight})); } catch {}
+    },
+};
+
+document.addEventListener('DOMContentLoaded', () => APP.init());
+</script>
+</body>
+</html>

@@ -19,7 +19,7 @@ UI 全部用 HTML+CSS+JS 实现，通过 Android WebView 加载。Android 壳代
 | 学习时报 | paper.studytimes.cn | HTML 解析 | `#1a5276` 藏蓝 |
 | 组织人事报 | www.zuzhirenshi.com | JSON API | `#6b3a2e` 棕红 |
 | 人民日报 | paper.people.com.cn | HTML 解析 | `#c0392b` 正红 |
-| 南方日报 | epaper.southcn.com | HTML 解析 | `#2c7a3a` 深绿 |
+| 南方日报 | epaper.nfnews.com | HTML 解析 | `#2c7a3a` 深绿 |
 
 ---
 
@@ -345,18 +345,18 @@ http://paper.people.com.cn/rmrb/pc/content/{YYYYMM}/{DD}/content_{id}.html
 
 **getArticles：**
 ```
-https://epaper.southcn.com/nfdaily/html/{YYYYMM}/{DD}/node_{XX}.html
+https://epaper.nfnews.com/nfdaily/html/{YYYYMM}/{DD}/node_{XX}.html
 ```
-日期格式 `YYYYMM/DD`。版面名有字母前缀：`node_A01.html` `node_DC01.html` 等。版面列表从首页 `#list li a` 提取。前 12 个版面并行获取。文章链接从 `[id^="artPList"] a` 提取。
+日期格式 `YYYYMM/DD`。版面名有字母前缀：`node_A01.html` `node_DC01.html` 等。版面列表从首页 `#list li a` 提取。前 12 个版面并行获取。文章链接从 `a.article-list-item` 提取。
 
 **getArticle：**
 ```
 https://epaper.nfnews.com/nfdaily/html/{YYYYMM}/{DD}/content_{id}.html
 ```
-注意：文章内容在 **nfnews.com** 域名，版面页在 southcn.com。需带 Referer。
-- 标题：`h1` → `<title>`
-- 作者：`<meta name="author">` 或 `enpproperty` 注释
-- 正文：`#content` 全量（含 enpcontent 前后的图片/表格），过滤 `enpproperty`
+改版后版面页和文章页都迁移到 `epaper.nfnews.com`，请求可带 `epaper.nfnews.com/nfdaily/html/` Referer。
+- 标题：`.article-title` → `h1` → `enpproperty <title>` → `<title>`
+- 作者：`enpproperty` 注释中的 `<author>` → `<meta name="author">`
+- 正文：优先 `<!--enpcontent-->` 内容，回退 `#content`
 
 ---
 

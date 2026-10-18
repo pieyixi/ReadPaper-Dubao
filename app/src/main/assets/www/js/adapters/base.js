@@ -2,15 +2,30 @@
  * 适配器公共工具 — 无节流版（速度优先）
  */
 const AdapterUtils = {
+    get proxyUrl() {
+        if (location.protocol === 'file:') return '';
+        const host = location.hostname || '';
+        const privateHost =
+            host === 'localhost' ||
+            host === '127.0.0.1' ||
+            host === '0.0.0.0' ||
+            /^10\./.test(host) ||
+            /^192\.168\./.test(host) ||
+            /^172\.(1[6-9]|2\d|3[01])\./.test(host);
+        return privateHost ? '/api/proxy' : '';
+    },
+
     async sleep(ms) { return new Promise(r => setTimeout(r, ms)); },
 
     /**
      * 无节流 fetchWithRetry — 单次请求直接发出
      */
     async fetchWithRetry(url, options = {}, retries = 2) {
+        const proxy = this.proxyUrl;
+        const finalUrl = proxy ? `${proxy}?url=${encodeURIComponent(url)}` : url;
         for (let i = 0; i <= retries; i++) {
             try {
-                const resp = await fetch(url, options);
+                const resp = await fetch(finalUrl, options);
                 if (resp.ok) return resp;
                 if (i < retries) await this.sleep(500);
             } catch (e) {

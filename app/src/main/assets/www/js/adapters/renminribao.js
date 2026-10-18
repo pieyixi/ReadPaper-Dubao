@@ -113,7 +113,12 @@ class RenMinRiBaoAdapter {
             // 作者：.sec 或 enpproperty 注释
             let author = '';
             const sec = doc.querySelector('.sec');
-            if (sec) author = (sec.textContent || '').replace(/《人民日报》.*?版\)?/g, '').trim();
+            if (sec) {
+                const secText = (sec.textContent || '').replace(/《人民日报》[\s\S]*?版\)?/g, '').trim();
+                if (secText && /记者|作者|新华社/.test(secText) && !/^\d{4}年/.test(secText)) {
+                    author = secText;
+                }
+            }
             if (!author) {
                 const m = html.match(/<author>([^<]+)<\/author>/);
                 if (m) author = m[1].trim();

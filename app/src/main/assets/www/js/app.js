@@ -7,6 +7,7 @@ const APP = {
         { id: 'zuzhirenshi',  name: '组织人事报',  subtitle: '中国人事报刊社',      color: 'zz' },
         { id: 'renminribao',  name: '人民日报',    subtitle: '中共中央机关报',      color: 'rmrb' },
         { id: 'nanfangribao', name: '南方日报',    subtitle: '中共广东省委机关报',   color: 'nfrb' },
+        { id: 'qiushi',       name: '求是',        subtitle: '中共中央主办',         color: 'qs' },
     ],
 
     cache: {},
@@ -109,8 +110,17 @@ const APP = {
         const im = hash.match(/^\/paper\/(\w+)$/);
         if (im) return this.renderIssues(im[1]);
 
-        const am = hash.match(/^\/paper\/(\w+)\/([\d-]+)$/);
-        if (am) return this.renderArticles(am[1], am[2]);
+        // 期数列表: #/paper/qiushi/2026 (求是年份)
+        const ym = hash.match(/^\/paper\/(\w+)\/year\/(\d{4})$/);
+        if (ym) return this.renderIssuesByYear(ym[1], ym[2]);
+
+        // 文章列表: #/paper/qiushi/issue/2026年第1期 (求是期号)
+        const am = hash.match(/^\/paper\/(\w+)\/issue\/(.+)$/);
+        if (am) return this.renderArticles(am[1], decodeURIComponent(am[2]));
+
+        // 文章列表: #/paper/studytimes/2026-06-23 (日报日期)
+        const dm = hash.match(/^\/paper\/(\w+)\/([\d-]+)$/);
+        if (dm) return this.renderArticles(dm[1], dm[2]);
 
         const rm = hash.match(/^\/reader\/(\w+)\/(.+)$/);
         if (rm) return this.renderReader(rm[1], rm[2]);
@@ -155,6 +165,33 @@ const APP = {
         const paper = this.newspapers.find(n => n.id === id);
         if (!paper) { location.hash = '#/'; return; }
 
+        // 求是杂志：先显示年份列表
+        if (id === 'qiushi') {
+            const token = ++this._navToken;
+            this._showLoading('加载年份...');
+
+            const adapter = this.getAdapter(id);
+            if (!adapter) { this._showError('暂不支持该报纸'); return; }
+
+            let years;
+            try { years = await adapter.getYears(); }
+            catch (e) { if (token !== this._navToken) return; this._showError('加载失败', null); return; }
+            if (token !== this._navToken) return;
+            if (!years || years.length === 0) { this._showEmpty(paper.name, '暂无数据', '#/'); return; }
+
+            const html = years.map(y => `
+                <a class="issue-item" href="#/paper/${id}/year/${y.year}">
+                    <div class="issue-title">${y.year}年</div>
+                    <div class="issue-meta">《求是》${y.year}年</div>
+                </a>
+            `).join('');
+            document.getElementById('app').innerHTML = `
+                <div class="page"><div class="page-header">
+                    <a class="back" href="#/">←</a><h2>${paper.name}</h2>
+                </div><div class="issue-list">${html}</div></div>`;
+            return;
+        }
+
         const token = ++this._navToken;
         this._showLoading('加载期数...');
 
@@ -184,6 +221,42 @@ const APP = {
         issues.sort((a, b) => b.date.localeCompare(a.date));
         // 改为日历视图
         this.renderCalendar(id, paper.name, issues);
+    },
+
+    // ===== 某年的期数列表（求是杂志） =====
+    async renderIssuesByYear(id, year) {
+        const paper = this.newspapers.find(n => n.id === id);
+        if (!paper) { location.hash = '#/'; return; }
+
+        const token = ++this._navToken;
+        this._showLoading('加载' + year + '年期数...');
+
+        const adapter = this.getAdapter(id);
+        if (!adapter) { this._showError('暂不支持'); return; }
+
+        let issues;
+        try { issues = await adapter.getIssues(year); }
+        catch (e) { if (token !== this._navToken) return; this._showError('加载失败', null); return; }
+        if (token !== this._navToken) return;
+        if (!issues || issues.length === 0) { this._showEmpty(year + '年', '暂无期数数据', `#/paper/${id}`); return; }
+
+        // 按期号倒序（从新到旧）
+        issues.sort((a, b) => {
+            const nA = parseInt(a.issue.match(/第(\d+)期/)?.[1] || '0');
+            const nB = parseInt(b.issue.match(/第(\d+)期/)?.[1] || '0');
+            return nB - nA;
+        });
+
+        const html = issues.map(iss => `
+            <a class="issue-item" href="#/paper/${id}/issue/${encodeURIComponent(iss.date)}">
+                <div class="issue-title">${this._esc(iss.issue)}</div>
+                <div class="issue-meta">${iss.articleCount ? iss.articleCount + '篇文章' : ''}</div>
+            </a>
+        `).join('');
+        document.getElementById('app').innerHTML = `
+            <div class="page"><div class="page-header">
+                <a class="back" href="#/paper/${id}">←</a><h2>${year}年《求是》</h2>
+            </div><div class="issue-list">${html}</div></div>`;
     },
 
     // ===== 日历视图 =====
@@ -305,6 +378,23 @@ const APP = {
             return true;
         });
 
+        // 求是杂志：无版面概念，文章直接平铺
+        if (id === 'qiushi') {
+            // 从期号 "2026年第1期" 提取年份，构建返回链接
+            const yearMatch = date.match(/(\d{4})年/);
+            const backHash = yearMatch ? `#/paper/${id}/year/${yearMatch[1]}` : `#/paper/${id}`;
+            const artsHTML = articles.map(a => `
+                <a class="art-item" href="#/reader/${id}/${encodeURIComponent(a.id)}">
+                    <div class="art-title">${this._esc(a.title)}</div>
+                    <div class="art-meta">${a.author ? this._esc(a.author) : ''}</div>
+                </a>`).join('');
+            document.getElementById('app').innerHTML = `
+                <div class="page"><div class="page-header">
+                    <a class="back" href="${backHash}">←</a><h2>${this._esc(date)}</h2>
+                </div><div class="article-list">${artsHTML}</div></div>`;
+            return;
+        }
+
         // 按版面分组
         const sections = {};
         articles.forEach(a => {
@@ -372,6 +462,7 @@ const APP = {
         const map = {
             studytimes: StudyTimesAdapter, zuzhirenshi: ZuZhiRenShiAdapter,
             renminribao: RenMinRiBaoAdapter, nanfangribao: NanFangRiBaoAdapter,
+            qiushi: QiushiAdapter,
         };
         const Cls = map[id];
         if (!Cls) return null;

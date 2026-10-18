@@ -1,14 +1,14 @@
 /**
  * 南方日报适配器
- * URL: https://epaper.southcn.com/nfdaily
+ * URL: https://epaper.nfnews.com/nfdaily
  *
  * 文章 ID 格式: "YYYYMMDD::contentId"
- * 注意: 版面页在 southcn.com，文章在 nfnews.com
+ * 注意: 改版后版面页和文章页都迁移到 nfnews.com
  */
 class NanFangRiBaoAdapter {
     constructor() {
-        this.BASE = 'https://epaper.southcn.com/nfdaily/html';
-        this.NFNEWS = 'https://epaper.nfnews.com/nfdaily/html';
+        this.BASE = 'https://epaper.nfnews.com/nfdaily/html';
+        this.NFNEWS = this.BASE;
         this._issuesCache = null;
     }
 
@@ -80,11 +80,11 @@ class NanFangRiBaoAdapter {
 
                 let secName = nodes[i].section;
                 if (!secName) {
-                    const h3 = doc.querySelector('#content_nav h3, .column h3');
-                    if (h3) secName = (h3.textContent || '').trim();
+                    const secEl = doc.querySelector('.layout-list-item-text, .layout-list .layout-list-item-text');
+                    if (secEl) secName = (secEl.textContent || '').trim();
                 }
 
-                doc.querySelectorAll('[id^="artPList"] a[href]').forEach(a => {
+                doc.querySelectorAll('a.article-list-item[href]').forEach(a => {
                     const title = ((a.querySelector('p') || a).textContent || '').trim();
                     const cm = (a.getAttribute('href') || '').match(/content[_-]?(\d+)\.html/i);
                     if (cm && title.length >= 2) {
@@ -115,32 +115,39 @@ class NanFangRiBaoAdapter {
 
             // 标题
             let title = '';
-            const h1 = doc.querySelector('h1');
-            if (h1) title = (h1.textContent || '').trim();
+            const titleEl = doc.querySelector('.article-title, h1');
+            if (titleEl) title = (titleEl.textContent || '').trim();
+            if (!title) {
+                const titleMatch = html.match(/<!--enpproperty[\s\S]*?<title>([\s\S]*?)<\/title>/);
+                if (titleMatch) {
+                    const titleDoc = new DOMParser().parseFromString(titleMatch[1], 'text/html');
+                    title = (titleDoc.body.textContent || '').trim();
+                }
+            }
             if (!title) { const t = doc.querySelector('title'); if (t) title = (t.textContent || '').trim(); }
 
-            // 作者：从 meta 或 enpproperty 注释
+            // 作者：优先取 enpproperty 里的真实作者，meta 里的“南方日报”只是报社名
             let author = '';
-            const ma = doc.querySelector('meta[name="author"]');
-            if (ma) author = (ma.getAttribute('content') || '').trim();
+            const authorMatch = html.match(/<!--enpproperty[\s\S]*?<author>([^<]+)<\/author>/);
+            if (authorMatch) author = authorMatch[1].trim();
             if (!author) {
-                const m = html.match(/<author>([^<]+)<\/author>/);
-                if (m) author = m[1].trim();
+                const ma = doc.querySelector('meta[name="author"]');
+                if (ma) author = (ma.getAttribute('content') || '').trim();
             }
 
-            // 正文：取 #content 全部内容（含 enpcontent 前后的图片）
+            // 正文：优先取 enpcontent，避免把页面里的 html/body 壳和上一篇列表一起带进来
             let bodyHtml = '';
-            const contentDiv = doc.querySelector('#content');
-            if (contentDiv) {
-                // 去掉 gallery 空壳、enpproperty 注释、字号按钮
-                bodyHtml = contentDiv.innerHTML
-                    .replace(/<div class="gallery"><\/div>/g, '')
-                    .replace(/<!--enpproperty[\s\S]*?-->/g, '')
-                    .replace(/<div class="font_change[^>]*>[\s\S]*?<\/div>/g, '');
+            const encMatch = html.match(/<!--enpcontent-->([\s\S]*?)<!--\/enpcontent-->/);
+            if (encMatch) {
+                bodyHtml = encMatch[1];
             } else {
-                // 回退：尝试 enpcontent
-                const encMatch = html.match(/<!--enpcontent-->([\s\S]*?)<!--\/enpcontent-->/);
-                if (encMatch) bodyHtml = encMatch[1];
+                const contentDiv = doc.querySelector('#content');
+                if (contentDiv) {
+                    bodyHtml = contentDiv.innerHTML
+                        .replace(/<div class="gallery"><\/div>/g, '')
+                        .replace(/<!--enpproperty[\s\S]*?-->/g, '')
+                        .replace(/<div class="font_change[^>]*>[\s\S]*?<\/div>/g, '');
+                }
             }
 
             // 图片基准 URL 为文章页目录

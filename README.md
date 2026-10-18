@@ -20,7 +20,7 @@
 | 🔵 | **学习时报** | paper.studytimes.cn | HTML 解析 |
 | 🟤 | **组织人事报** | www.zuzhirenshi.com | JSON API |
 | 🔴 | **人民日报** | paper.people.com.cn | HTML 解析 |
-| 🟢 | **南方日报** | epaper.southcn.com | HTML 解析 |
+| 🟢 | **南方日报** | epaper.nfnews.com | HTML 解析 |
 
 ## 功能
 
@@ -73,6 +73,14 @@ gradlew assembleRelease
 ```
 
 输出：`app/build/outputs/apk/release/app-release.apk`
+
+### 手机浏览器本地测试
+
+```bash
+node server.mjs
+```
+
+服务启动后，手机和电脑连同一个 Wi-Fi，浏览器打开 `http://电脑局域网IP:8080`。本地服务会把静态页面和官网请求代理到一起，避免手机浏览器里的跨域限制。
 
 ## 项目结构
 
