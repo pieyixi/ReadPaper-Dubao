@@ -1,129 +1,44 @@
-<h1 align="center">读报</h1>
-<p align="center"><strong>每日官媒精选 · 纯净阅读</strong></p>
+# 读报
 
-<p align="center">
-  <img src="https://img.shields.io/badge/platform-Android%205.0%2B-green" alt="Android">
-  <img src="https://img.shields.io/badge/minSdk-21-blue" alt="API 21+">
-  <img src="https://img.shields.io/badge/license-MIT-lightgrey" alt="License">
-</p>
+Kotlin 原生 Android 读报器，保留学习时报、组织人事报、人民日报、南方日报、求是五个来源，支持文章与自定义粘贴文本的本机朗读。包名仍为 `com.newspaper.helper`，版本为 `2.0.0`（versionCode 3）。
 
----
+业务页面使用 View/XML、ViewBinding 和 RecyclerView/TextView。`app/src/main/assets/www/` 完整保留为迁移前的文案与视觉参照，不再作为业务入口；`test.html` 仍只是旧调试页面。自动化结果与尚未验证的项目见 [NATIVE-ACCEPTANCE.md](NATIVE-ACCEPTANCE.md)，实现约定见 [SPEC.md](SPEC.md)。
 
-## 简介
+## 构建与检查（Codex Cloud）
 
-一款简洁的 Android 新闻阅读器，实时从四份主流官媒官网获取内容，以纯净排版呈现。无广告、无推送、无持久化存储。
-
-## 支持报纸
-
-|   | 报纸 | 来源 | 获取方式 |
-|---|------|------|---------|
-| 🔵 | **学习时报** | paper.studytimes.cn | HTML 解析 |
-| 🟤 | **组织人事报** | www.zuzhirenshi.com | JSON API |
-| 🔴 | **人民日报** | paper.people.com.cn | HTML 解析 |
-| 🟢 | **南方日报** | epaper.nfnews.com | HTML 解析 |
-
-## 功能
-
-- 📅 精美日历视图，有报高亮、无报灰显
-- 📰 按期数 → 版面 → 文章 逐层浏览
-- ✂ 正文智能清洗，去除广告 / 彩票 / 版权等杂质
-- 🖼 文章图片自动加载（跨域相对路径转绝对 URL）
-- 🌙 白天 · 黑夜 · 护眼 三种全局主题
-- 🔤 字号 4 档、行距 4 档可调
-- ⚡ localStorage 缓存，二次打开秒开
-- 🗓 并行请求 + 日期生成，加载速度极快
-- 📱 320dp ~ 宽屏全响应式适配
-
-## 架构
-
-```
-APK
- └── Android 壳 (MainActivity, ~50行)
-      │  WebView 加载 assets/www/index.html
-      │  返回键处理 | 跨域设置
-      └── assets/www/
-           ├── index.html         路由入口
-           ├── css/app.css        全部样式
-           ├── js/app.js          路由引擎 + 日历 + 设置
-           ├── js/reader.js       正文清洗 + 阅读器渲染
-           └── js/adapters/
-               ├── base.js        共享工具 (fetch/缓存)
-               ├── studytimes.js  学习时报
-               ├── zuzhirenshi.js 组织人事报
-               ├── renminribao.js 人民日报
-               └── nanfangribao.js 南方日报
-```
-
-## 快速开始
-
-### 环境要求
-- **JDK 17** — [下载](https://adoptium.net/temurin/releases/?version=17)
-- **Android SDK** — 脚本自动下载，或手动设 `ANDROID_HOME`
-- **Gradle Wrapper** — 已打包在 `gradle/wrapper/`
-
-### 一键打包
+使用 JDK 17、Android SDK/API 34、Build Tools 34.0.0 和 Gradle Wrapper 8.4。依赖版本固定在 Gradle 文件中；无需用户的 Windows 电脑下载开发环境。
 
 ```bash
-# Windows
-双击 制作APK.bat
-
-# 或手动
-echo sdk.dir=你的SDK路径 > local.properties
-gradlew assembleRelease
+cd /workspace/ReadPaper-Dubao
+# 当前云环境每个新 shell 都需激活；没有该文件时先按 CLOUD-SETUP.md 准备工具。
+source /workspace/.dubao-tools/activate.sh
+python3 scripts/audit-ui.py
+bash scripts/cloud-build.sh debug
+bash scripts/cloud-build.sh checks
 ```
 
-输出：`app/build/outputs/apk/release/app-release.apk`
+在同一个 checkout 中串行运行 Gradle，避免两个构建同时改写产物。Debug APK 为 `app/build/outputs/apk/debug/app-debug.apk`；lint 与 JVM 报告在 `app/build/reports/`。源码仓库不包含 APK、SDK、缓存或签名文件。
 
-### 手机浏览器本地测试
+真实网站联网检查单独执行，避免离线测试依赖官网可用性：
 
 ```bash
-node server.mjs
+DUBAO_LIVE=1 bash ./gradlew --no-daemon --max-workers=3 testDebugUnitTest --tests '*LiveSourcesTest'
 ```
 
-服务启动后，手机和电脑连同一个 Wi-Fi，浏览器打开 `http://电脑局域网IP:8080`。本地服务会把静态页面和官网请求代理到一起，避免手机浏览器里的跨域限制。
+设备测试位于 `app/src/androidTest/`，分别检查原生界面、真实 TTS/ExoPlayer，以及设备端五来源 HTTPS。测试需要可用 Android 设备；真实语音测试另需已安装支持中文的系统 TTS 引擎。不能把没有运行的设备测试计为通过。
 
-## 项目结构
+## 阅读与朗读
 
-```
-android/
-├── SPEC.md                       # 完整技术规格
-├── 制作APK.bat                    # 一键打包脚本
-├── build.gradle.kts              # 根构建配置
-├── settings.gradle.kts
-├── gradle.properties
-├── gradlew / gradlew.bat         # Gradle Wrapper
-├── release.jks                   # 签名密钥 (需自行生成)
-├── res/dubao.png                 # 图标源文件
-└── app/
-    ├── build.gradle.kts          # 应用构建 + 签名配置
-    └── src/main/
-        ├── AndroidManifest.xml
-        ├── res/                  # 资源 (图标/主题/字符串)
-        ├── java/.../MainActivity.java
-        └── assets/www/           # 全部 UI 和逻辑
-```
+- 日报：首页 → 月历 → 按版面分组的文章 → 正文；求是：首页 → 年份 → 期号 → 文章 → 正文。
+- 三主题、四档字号/行距沿用正式网页基线。新增操作使用图标；粘贴编辑区首次打开为空，使用系统编辑/粘贴菜单。
+- 获取、正文解析、数据库、长文本分段和音频文件处理都在后台执行。网络请求可取消，最多四个并发，设有超时与有限重试。
+- Room 保存文章正文块和阅读/朗读位置；DataStore 保存设置及页面。旧网页资产和旧 WebView 数据不删除；新原生设置独立保存，不解析旧 WebView 内部数据库。
+- Media3 媒体服务管理通知、后台播放、媒体按键和音频焦点。系统 TextToSpeech 分段生成本机 WAV，仅使用已安装的离线音色，首段可用即可播放，最多提前准备后续两段。当前只保证块/片段高亮，不承诺逐字高亮。
+- 自定义文本不经过新闻清洗，不上传服务器；只在本机保存文本摘要对应的朗读位置，正文不写入文章库。临时文本通过私有缓存文件传递，避免大文本跨 Binder；音频缓存设有 32 MiB/24 小时清理策略，停止时清理。
+- 缺少中文语音时，播放图标进入系统语音安装/设置；安装或选择引擎后可重试。语音质量和可用音色取决于设备引擎。
 
-## 适配器接口
+## 签名与开发代理
 
-每个报纸实现三个方法，文件在 `js/adapters/{name}.js`：
+Release 必须使用原始密钥，通过安全环境配置提供 `DUBAO_KEYSTORE_FILE`（或 `DUBAO_KEYSTORE_BASE64`）、`DUBAO_STORE_PASSWORD`、`DUBAO_KEY_ALIAS`、`DUBAO_KEY_PASSWORD` 后执行 `bash scripts/cloud-build.sh release`。缺少原签名时明确失败，不生成替代 Release 密钥。
 
-```javascript
-getIssues()           // → [{date, issue, articleCount}, ...]
-getArticles(date)     // → [{id, title, author, section, wordCount}, ...]
-getArticle(id)        // → {title, author, date, section, bodyHtml}
-```
-
-采用 **self-contained ID** 设计：文章 ID 自包含 URL 构造信息，`getArticle` 无需依赖 `getArticles` 先调用。
-
-## 正文清洗规则
-
-- 移除 `<script>` `<style>` `<nav>` 等非内容标签
-- 过滤"上一篇""版权""ICP备""广告""彩票""遗失声明"等关键词
-- 图片相对路径自动转绝对 URL
-- 白名单保留 `<p>` `<h1>~<h6>` `<img>` `<blockquote>` `<strong>` `<em>`
-- 空段落 / 纯广告段落移除
-- 段首全角空格去除，避免 CSS text-indent 叠加
-
-## License
-
-MIT
+Release 只信任系统 CA。Debug 额外信任开发设备安装的用户 CA，供云端代理验证 HTTPS 使用；这不会关闭证书校验，也不在源码中放置环境证书或凭证。

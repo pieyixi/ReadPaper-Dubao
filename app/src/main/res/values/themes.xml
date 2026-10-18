@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar" />
+    <style name="AppTheme" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">#1a5276</item>
+        <item name="colorPrimary">#1a5276</item>
+        <item name="colorPrimaryVariant">#1a5276</item>
+        <item name="colorSecondary">#1a5276</item>
+        <item name="android:windowActionModeOverlay">true</item>
+    </style>
 </resources>

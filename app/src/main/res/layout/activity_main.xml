@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root" android:orientation="vertical" android:layout_width="match_parent" android:layout_height="match_parent">
+    <LinearLayout android:id="@+id/toolbar" android:orientation="horizontal" android:gravity="center_vertical" android:paddingStart="14dp" android:paddingEnd="14dp" android:layout_width="match_parent" android:layout_height="56dp">
+        <com.newspaper.helper.GlyphView android:id="@+id/back" android:layout_width="48dp" android:layout_height="48dp" />
+        <TextView android:id="@+id/title" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:textSize="20sp" android:textStyle="bold" android:maxLines="1" android:ellipsize="end" />
+        <com.newspaper.helper.GlyphView android:id="@+id/paste" android:layout_width="48dp" android:layout_height="48dp" />
+        <com.newspaper.helper.GlyphView android:id="@+id/gear" android:layout_width="48dp" android:layout_height="48dp" />
+        <TextView android:id="@+id/settings" android:layout_width="48dp" android:layout_height="48dp" android:gravity="center" android:text="@string/ui_aa" android:textSize="14sp" android:textStyle="bold" android:clickable="true" android:focusable="true" />
+    </LinearLayout>
+    <LinearLayout android:id="@+id/settingsPanel" android:orientation="vertical" android:padding="12dp" android:visibility="gone" android:layout_width="match_parent" android:layout_height="wrap_content" />
+    <androidx.recyclerview.widget.RecyclerView android:id="@+id/list" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:clipToPadding="false" android:paddingBottom="40dp" />
+    <EditText android:id="@+id/editor" android:contentDescription="@string/a11y_editor" android:saveEnabled="false" android:visibility="gone" android:gravity="top|start" android:inputType="textMultiLine|textCapSentences" android:importantForAutofill="no" android:padding="18dp" android:background="@android:color/transparent" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" />
+    <LinearLayout android:id="@+id/playback" android:orientation="horizontal" android:gravity="center" android:visibility="gone" android:layout_width="match_parent" android:layout_height="52dp" />
+</LinearLayout>

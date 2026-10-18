@@ -1,0 +1,49 @@
+{
+  "assets_sha256": {
+    "app/src/main/assets/www/index.html": "5d9ac37de99350e8449d50e0cfacbace3af7f117ae24f83150ba2be80935227b",
+    "app/src/main/assets/www/css/app.css": "418176edc3bc01eb834abde2bb70cf05cdbcf923a8f824d1e12034a1bfc46734",
+    "app/src/main/assets/www/js/app.js": "9f98fc7e64e1b026c450a731fc22765453646c6cf20c4d065d82d1827d3612f3",
+    "app/src/main/assets/www/js/reader.js": "c9fefd95760ed3a17e5afdbf29807817443401753359a5b6ed7b9c56aa7707e8"
+  },
+  "visible_strings": {
+    "app_name": "读报",
+    "ui_aa": "Aa",
+    "ui_subtitle": "每日官媒精选",
+    "ui_font": "字号",
+    "ui_line": "行距",
+    "ui_mode": "模式",
+    "ui_small": "小",
+    "ui_medium": "中",
+    "ui_large": "大",
+    "ui_xlarge": "特大",
+    "ui_tight": "紧凑",
+    "ui_standard": "标准",
+    "ui_loose": "宽松",
+    "ui_wider": "更宽",
+    "ui_day": "白天",
+    "ui_night": "黑夜",
+    "ui_eye": "护眼",
+    "ui_loading": "加载中...",
+    "ui_error": "加载失败",
+    "ui_empty": "暂无内容",
+    "ui_retry": "点击重试",
+    "ui_has": "有报",
+    "ui_none": "无报"
+  },
+  "source_names_and_subtitles": [
+    "学习时报",
+    "中共中央党校主办",
+    "组织人事报",
+    "中国人事报刊社",
+    "人民日报",
+    "中共中央机关报",
+    "南方日报",
+    "中共广东省委机关报",
+    "求是",
+    "中共中央主办"
+  ],
+  "dynamic_data": [
+    "日期、年份、期号、版面、来源标题、作者、正文、文章数量"
+  ],
+  "accessibility": "a11y_ 资源只用于 contentDescription，不作为可见文案。"
+}

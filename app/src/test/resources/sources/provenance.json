@@ -1,0 +1,13 @@
+{
+  "study-article": "https://paper.studytimes.cn/cntheory/2026-10/16/content_9987903.html",
+  "south-article": "https://epaper.nfnews.com/nfdaily/html/202610/18/content_10183807.html?origin=4",
+  "people-article": "https://paper.people.com.cn/rmrb/pc/content/202610/18/content_30186269.html",
+  "qiushi-issue": "https://www.qstheory.cn/20260930/4cc88dc1408a4522b8f3305edc1f2aac/c.html",
+  "organization-article": "https://www.zuzhirenshi.com/api/welcome/selectNews?id=c24b0a49-b7e6-45b1-908d-044697cbde4c",
+  "qiushi-article": "https://www.qstheory.cn/20260930/5c9d186e89d34b61a2395e276051382a/c.html",
+  "study-calendar": "https://paper.studytimes.cn/cntheory/2026-10/nav.json",
+  "qiushi-2019-article": "https://www.qstheory.cn/dukan/qs/2019-12/16/c_1125346113.htm",
+  "people-image-article": "https://paper.people.com.cn/rmrb/pc/content/202610/18/content_30186272.html",
+  "retrieved_date": "2026-10-18",
+  "purpose": "原站 HTML/JSON 回归样本，仅用于解析验证；合成边界样本在测试代码中明确构造。"
+}

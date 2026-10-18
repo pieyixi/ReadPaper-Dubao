@@ -1,4 +1,37 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">读报</string>
+    <string name="ui_aa">Aa</string>
+    <string name="ui_subtitle">每日官媒精选</string>
+    <string name="ui_font">字号</string>
+    <string name="ui_line">行距</string>
+    <string name="ui_mode">模式</string>
+    <string name="ui_small">小</string>
+    <string name="ui_medium">中</string>
+    <string name="ui_large">大</string>
+    <string name="ui_xlarge">特大</string>
+    <string name="ui_tight">紧凑</string>
+    <string name="ui_standard">标准</string>
+    <string name="ui_loose">宽松</string>
+    <string name="ui_wider">更宽</string>
+    <string name="ui_day">白天</string>
+    <string name="ui_night">黑夜</string>
+    <string name="ui_eye">护眼</string>
+    <string name="ui_loading">加载中...</string>
+    <string name="ui_error">加载失败</string>
+    <string name="ui_empty">暂无内容</string>
+    <string name="ui_retry">点击重试</string>
+    <string name="ui_has">有报</string>
+    <string name="ui_none">无报</string>
+    <string name="a11y_back">返回</string>
+    <string name="a11y_custom">粘贴文本朗读</string>
+    <string name="a11y_play">播放或暂停</string>
+    <string name="a11y_stop">停止朗读</string>
+    <string name="a11y_previous">上一段</string>
+    <string name="a11y_next">下一段</string>
+    <string name="a11y_queue">加入连续播放队列</string>
+    <string name="a11y_speed">朗读速度</string>
+    <string name="a11y_settings">阅读设置</string>
+    <string name="a11y_retry">重试加载</string>
+    <string name="a11y_editor">可编辑的朗读文本</string>
 </resources>
