@@ -19,6 +19,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+          cache: gradle
       - uses: android-actions/setup-android@v3
         with:
           packages: platform-tools
@@ -40,6 +41,24 @@ jobs:
       - name: Record live service outcome
         if: always()
         run: echo 'Live speech check outcome is ${{ steps.online.outcome }}. This is separate from build and offline tests.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Enable cloud emulator acceleration
+        if: steps.online.outcome == 'success'
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Android online playback checks
+        if: steps.online.outcome == 'success'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 28
+          arch: x86_64
+          target: default
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: |
+            bash ./gradlew --no-daemon --console=plain connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.newspaper.helper.OnlinePlaybackTest
+            adb pull /sdcard/Android/data/com.newspaper.helper/files/online-evidence app/build/speech-evidence/android
       - name: Upload APK and validation evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -50,5 +69,6 @@ jobs:
             app/build/outputs/apk/debug/*.apk
             app/build/reports/tests/
             app/build/reports/lint-results-debug.*
+            app/build/reports/androidTests/
             app/build/speech-evidence/
             app/build/test-results/testDebugUnitTest/

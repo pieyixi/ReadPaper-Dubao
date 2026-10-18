@@ -30,7 +30,8 @@ class AndroidSpeechEngine(context: Context) : SpeechEngine {
         if (tts.setLanguage(locale) < TextToSpeech.LANG_AVAILABLE) throw VoiceUnavailable()
         // 只使用已安装的离线音色，避免自定义文本被系统的网络音色上传。
         fun offline(voice:android.speech.tts.Voice) = !voice.isNetworkConnectionRequired && voice.features?.contains("notInstalled") != true
-        val voice=tts.voices.orEmpty().filter { offline(it) && it.locale.language==locale.language }
+        val candidates=(tts.voices.orEmpty()+listOfNotNull(tts.voice)).distinctBy { it.name }
+        val voice=candidates.filter { offline(it) && it.locale.language==locale.language }
             .sortedWith(compareByDescending<android.speech.tts.Voice> { it.locale.country==locale.country }
                 .thenByDescending { it.quality }.thenBy { it.latency }.thenBy { it.name }).firstOrNull()
             ?: throw VoiceUnavailable()

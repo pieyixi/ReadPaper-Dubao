@@ -243,7 +243,7 @@ class ReadAloudService : MediaSessionService() {
                 if (token == generation) begin(loaded, restore)
             } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
                 engine.cancel()
-                PlaybackSignals.mutable.value = PlaybackSignals.mutable.value.copy(preparing=false,failed=true)
+                reportFailure(e,story.url)
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) { reportFailure(e,story.url) }
         }
