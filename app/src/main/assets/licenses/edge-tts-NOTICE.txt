@@ -1,0 +1,15 @@
+Edge protocol component: EdgeToken.kt
+
+Adapted from edge-tts 7.3.1 drm.py, copyright rany2 and contributors.
+License: GNU Lesser General Public License version 3 (LGPL-3.0-only).
+The original source is available at https://github.com/rany2/edge-tts
+The modified Kotlin component and the application's build instructions are available at:
+https://github.com/pieyixi/ReadPaper-Dubao/tree/codex/free-online-speech
+
+The LGPL and referenced GPL texts accompany this notice. This component is provided
+without warranty. You may modify it and rebuild the application using the supplied
+source and standard Android tools. Release signing keys are not part of this offer;
+modified builds can be signed with your own key and installed separately.
+
+Edge Read Aloud is a Microsoft service. This application is not affiliated with
+Microsoft and has no guarantee of third-party service availability.

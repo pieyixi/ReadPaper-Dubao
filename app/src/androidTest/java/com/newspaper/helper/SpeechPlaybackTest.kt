@@ -85,10 +85,11 @@ class SpeechPlaybackTest {
             main { player.setPlaybackSpeed(1.25f);player.play() }
             waitFor("Resume did not advance") { main { player.currentPosition>paused+150 } }
             val previousBlock=PlaybackSignals.state.value.block
+            val previousSegment=main { player.currentMediaItem?.mediaId }
             command("step",Bundle().apply { putInt("delta",1) })
-            waitFor("Next segment did not change block") { PlaybackSignals.state.value.block!=previousBlock && PlaybackSignals.state.value.block.isNotEmpty() }
+            waitFor("Next segment did not change audio item") { main { player.currentMediaItem?.mediaId }!=previousSegment && PlaybackSignals.state.value.block.isNotEmpty() }
             command("step",Bundle().apply { putInt("delta",-1) })
-            waitFor("Previous segment did not restore block") { PlaybackSignals.state.value.block==previousBlock }
+            waitFor("Previous segment did not restore audio item") { main { player.currentMediaItem?.mediaId }==previousSegment && PlaybackSignals.state.value.block==previousBlock }
             // 真正离开 Activity 后仍由媒体服务播放；不以模拟的播放事件代替解码进度。
             app.startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             Thread.sleep(500)

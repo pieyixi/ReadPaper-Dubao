@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.room.Dao
+import androidx.room.ColumnInfo
 import androidx.room.Database
 import androidx.room.Entity
 import androidx.room.Insert
@@ -14,6 +15,8 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.map
@@ -23,7 +26,10 @@ val jsonCodec = Gson()
 @Entity(tableName = "articles")
 data class ArticleRecord(@PrimaryKey val url: String, val payload: String, val fetched: Long)
 @Entity(tableName = "positions")
-data class ReadingPosition(@PrimaryKey val url: String, val block: Int = 0, val offset: Int = 0, val segment: Int = 0, val audioMs: Long = 0)
+data class ReadingPosition(@PrimaryKey val url: String, val block: Int = 0, val offset: Int = 0, val segment: Int = 0, val audioMs: Long = 0,
+    @ColumnInfo(defaultValue="''") val audioBlock:String="",
+    @ColumnInfo(defaultValue="0") val audioOffset:Int=0,
+    @ColumnInfo(defaultValue="''") val audioFingerprint:String="")
 @Entity(tableName = "playback_queue")
 data class QueueRecord(@PrimaryKey val id: Int = 1, val payload: String)
 @Dao
@@ -32,18 +38,28 @@ interface ReaderDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun saveArticle(value: ArticleRecord)
     @Query("SELECT * FROM positions WHERE url=:url") suspend fun position(url: String): ReadingPosition?
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun savePosition(value: ReadingPosition)
-    @Query("UPDATE positions SET segment=:segment, audioMs=:ms WHERE url=:url") suspend fun audioPosition(url: String, segment: Int, ms: Long)
+    @Query("UPDATE positions SET segment=:segment, audioMs=:ms, audioBlock=:blockId, audioOffset=:sourceOffset, audioFingerprint=:fingerprint WHERE url=:url")
+    suspend fun audioPosition(url: String, segment: Int, ms: Long, blockId:String="", sourceOffset:Int=0, fingerprint:String="")
     @Query("UPDATE positions SET block=:block, offset=:offset WHERE url=:url") suspend fun readPosition(url: String, block: Int, offset: Int)
     @Query("SELECT * FROM playback_queue WHERE id=1") suspend fun queue(): QueueRecord?
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun saveQueue(queue: QueueRecord)
 }
-@Database(entities = [ArticleRecord::class, ReadingPosition::class, QueueRecord::class], version = 1, exportSchema = false)
+@Database(entities = [ArticleRecord::class, ReadingPosition::class, QueueRecord::class], version = 2, exportSchema = false)
 abstract class ReaderDatabase : RoomDatabase() {
     abstract fun reader(): ReaderDao
     companion object {
+        // 只增加朗读锚点；保留原有文章、队列和阅读位置，禁止破坏性迁移。
+        val MIGRATION_1_2=object:Migration(1,2) {
+            override fun migrate(db:SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE positions ADD COLUMN audioBlock TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE positions ADD COLUMN audioOffset INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE positions ADD COLUMN audioFingerprint TEXT NOT NULL DEFAULT ''")
+            }
+        }
         @Volatile private var value: ReaderDatabase? = null
         fun get(context: Context): ReaderDatabase = value ?: synchronized(this) {
-            value ?: Room.databaseBuilder(context.applicationContext, ReaderDatabase::class.java, "native-reader.db").build().also { value = it }
+            value ?: Room.databaseBuilder(context.applicationContext, ReaderDatabase::class.java, "native-reader.db")
+                .addMigrations(MIGRATION_1_2).build().also { value = it }
         }
     }
 }

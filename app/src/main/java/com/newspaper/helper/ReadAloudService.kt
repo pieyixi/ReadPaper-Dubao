@@ -48,6 +48,11 @@ class ReadAloudService : MediaSessionService() {
     private var session: MediaSession? = null
     private lateinit var repository: ArticleRepository
     private lateinit var engine: SpeechEngine
+    private var usingOnline = true
+    private var audioFingerprint = ""
+    private var durations = LongArray(0)
+    private var speechFailed = false
+    private var voiceMissing = false
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var work: Job? = null
     private var generation = 0L
@@ -65,7 +70,7 @@ class ReadAloudService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
         repository = ArticleRepository(this)
-        engine = AndroidSpeechEngine(this)
+        engine = EdgeSpeechEngine()
         audioDir = File(cacheDir, "speech")
         scope.launch(Dispatchers.IO) { audioDir.mkdirs(); prune(emptySet()) }
         player = ExoPlayer.Builder(this).build().apply {
@@ -76,11 +81,13 @@ class ReadAloudService : MediaSessionService() {
                 override fun onIsPlayingChanged(isPlaying: Boolean) { publish() }
                 override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) { if (!resetting) desiredPlay = playWhenReady; publish() }
                 override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                    if(resetting) return
                     val discard = player.currentMediaItemIndex - 1
                     if (discard > 0) { baseSegment += discard; player.removeMediaItems(0, discard) }
                     publish(); fillAhead()
                 }
                 override fun onPlaybackStateChanged(playbackState: Int) {
+                    if(resetting) return
                     if (playbackState == Player.STATE_ENDED) {
                         if (generated < segments.size) fillAhead()
                         else if (queueIndex + 1 < queue.size) {
@@ -89,7 +96,7 @@ class ReadAloudService : MediaSessionService() {
                     }
                 }
                 override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-                    PlaybackSignals.mutable.value = PlaybackSignals.mutable.value.copy(failed = true)
+                    speechFailed=true;publish()
                 }
             })
         }
@@ -132,7 +139,8 @@ class ReadAloudService : MediaSessionService() {
                             work?.cancel()
                             work = null
                             engine.close()
-                            engine = AndroidSpeechEngine(this@ReadAloudService)
+                            engine = if(usingOnline) EdgeSpeechEngine() else AndroidSpeechEngine(this@ReadAloudService)
+                            speechFailed=false;voiceMissing=false
                             PlaybackSignals.mutable.value = PlaybackSignals.mutable.value.copy(voiceMissing=false,failed=false,preparing=false)
                         }
                         "resumeQueue" -> restoreQueue(true)
@@ -141,7 +149,7 @@ class ReadAloudService : MediaSessionService() {
                 }
             }).build()
         scope.launch {
-            while (true) { delay(2000); if (player.isPlaying) persist() }
+            while (true) { delay(2000); if (player.isPlaying) { persist();fillAhead() } }
         }
         restoreQueue(false)
     }
@@ -190,7 +198,7 @@ class ReadAloudService : MediaSessionService() {
         ensureForeground()
         persist()
         work?.cancel(); engine.cancel(); generation++
-        if (PlaybackSignals.state.value.voiceMissing) { engine.close(); engine=AndroidSpeechEngine(this) }
+        speechFailed=false;voiceMissing=false
         resetPlayer()
         segments = emptyList()
         desiredPlay = true
@@ -205,7 +213,7 @@ class ReadAloudService : MediaSessionService() {
                     val textArticle = withContext(Dispatchers.Default) { Segmenter.custom(text) }
                     begin(textArticle, true)
                 } catch (e: CancellationException) { throw e }
-                catch (e: Exception) { PlaybackSignals.mutable.value = PlaybackStatus(failed = true); endPreparingIfEmpty() }
+                catch (e: Exception) { reportFailure(e) }
             }
         } else if (queue.isNotEmpty()) {
             val selected = queue.first()
@@ -227,6 +235,7 @@ class ReadAloudService : MediaSessionService() {
         work?.cancel(); engine.cancel(); generation++
         val token = generation
         resetPlayer()
+        segments=emptyList();durations=LongArray(0)
         PlaybackSignals.mutable.value = PlaybackStatus(article = story.url, preparing = true)
         work = scope.launch {
             try {
@@ -236,40 +245,58 @@ class ReadAloudService : MediaSessionService() {
                 engine.cancel()
                 PlaybackSignals.mutable.value = PlaybackSignals.mutable.value.copy(preparing=false,failed=true)
             } catch (e: CancellationException) { throw e }
-            catch (e: Exception) { PlaybackSignals.mutable.value = PlaybackStatus(article = story.url, failed = true); endPreparingIfEmpty() }
+            catch (e: Exception) { reportFailure(e,story.url) }
         }
     }
     private suspend fun begin(loaded: Article, restore: Boolean) {
         article = loaded
-        segments = withContext(Dispatchers.Default) { Segmenter.split(loaded, minOf(1800, android.speech.tts.TextToSpeech.getMaxSpeechInputLength() - 1)) }
+        segments = withContext(Dispatchers.Default) { Segmenter.split(loaded) }
+        durations=LongArray(segments.size)
+        usingOnline=SpeechPolicy.online(loaded)
+        custom=!usingOnline
+        engine.close()
+        engine=if(usingOnline) EdgeSpeechEngine() else AndroidSpeechEngine(this)
+        if(segments.isNotEmpty()) prepareEngine(loaded)
         val position = if (restore) repository.dao.position(loaded.story.url) else null
         if (position==null && custom) repository.dao.savePosition(ReadingPosition(loaded.story.url))
-        baseSegment = (position?.segment ?: 0).coerceIn(0, maxOf(0, segments.lastIndex))
+        val restored=withContext(Dispatchers.Default) { SpeechPolicy.resume(position,loaded,segments,audioFingerprint) }
+        baseSegment = restored.first
         generated = baseSegment
-        resumeMs = position?.audioMs ?: 0
+        resumeMs = restored.second
+        speechFailed=false;voiceMissing=false
         PlaybackSignals.mutable.value = PlaybackStatus(article = loaded.story.url, preparing = segments.isNotEmpty())
-        // 首段立即可播，仅预取当前片段之后两段；世代令牌隔离切文后的旧回调。
+        // 首段完成即可播放；预取按可播放时长计量，并限制为最多八段。
         work = null
         fillAhead()
     }
+    private suspend fun prepareEngine(loaded:Article) {
+        val sample=withContext(Dispatchers.Default) {
+            loaded.blocks.firstOrNull { block -> block.text.any { it.code in 0x3400..0x9fff } }?.text
+                ?: segments.firstOrNull()?.text.orEmpty()
+        }
+        val selectedEngine=engine
+        withContext(Dispatchers.IO) { selectedEngine.prepare(sample) }
+        audioFingerprint=withContext(Dispatchers.Default) { SpeechPolicy.fingerprint(loaded,selectedEngine) }
+    }
+    private fun needsAudio():Boolean {
+        val current=baseSegment+maxOf(0,player.currentMediaItemIndex)
+        val buffered=(current until generated).sumOf { durations.getOrElse(it) { 0L } }-player.currentPosition.coerceAtLeast(0)
+        return SpeechPolicy.prefetch(current,generated,segments.size,buffered,player.playbackParameters.speed)
+    }
     private fun fillAhead() {
-        if (work?.isActive == true || segments.isEmpty()) return
+        if (work?.isActive == true || segments.isEmpty() || speechFailed || voiceMissing || !needsAudio()) return
         val token = generation
         work = scope.launch {
             var succeeded = false
             try {
-                val current = baseSegment + maxOf(0, player.currentMediaItemIndex)
-                val end = minOf(segments.size, current + 3)
-                while (generated < end && token == generation) {
+                while (needsAudio() && token == generation) {
                     val segment = segments[generated]
-                    val file = File(audioDir, "${stableId("$token|${segment.articleId}|${segment.index}")}.wav")
-                    withContext(Dispatchers.IO) { audioDir.mkdirs(); if (file.exists()) file.delete() }
-                    withTimeout(60000) { engine.synthesize(segment.text, file) }
+                    val clip=withTimeout(60000) { SpeechAudioCache(audioDir).render(segment,engine,custom) }
                     if (token != generation) {
                         return@launch
                     }
-                    check(withContext(Dispatchers.IO) { file.length() > 44 }) { "Empty audio" }
-                    val item = MediaItem.Builder().setUri(android.net.Uri.fromFile(file)).setMediaId(segment.index.toString())
+                    durations[generated]=clip.durationMs
+                    val item = MediaItem.Builder().setUri(android.net.Uri.fromFile(clip.file)).setMediaId(segment.index.toString())
                         .setMediaMetadata(MediaMetadata.Builder().setTitle(article?.story?.title?.ifBlank { getString(R.string.app_name) })
                             .setArtist(article?.story?.paper?.label).build()).build()
                     val first = player.mediaItemCount == 0
@@ -284,17 +311,21 @@ class ReadAloudService : MediaSessionService() {
                 succeeded = true
             } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
                 engine.cancel()
-                PlaybackSignals.mutable.value = PlaybackSignals.mutable.value.copy(preparing=false,failed=true)
-                endPreparingIfEmpty()
+                reportFailure(e)
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) {
-                PlaybackSignals.mutable.value = PlaybackSignals.mutable.value.copy(preparing = false, voiceMissing = e is VoiceUnavailable, failed = e !is VoiceUnavailable)
-                endPreparingIfEmpty()
+                // 只在尚未播放首段时尝试离线后备；已有在线声音时绝不在中途换声。
+                if(usingOnline && player.mediaItemCount==0) {
+                    engine.close();usingOnline=false;engine=AndroidSpeechEngine(this@ReadAloudService)
+                    try {
+                        prepareEngine(checkNotNull(article));resumeMs=0;succeeded=true
+                    } catch(cancel:CancellationException) { throw cancel }
+                    catch(fallback:Exception) { reportFailure(fallback) }
+                } else reportFailure(e)
             } finally {
                 if (token == generation) {
                     work = null
-                    val target = minOf(segments.size, baseSegment + maxOf(0, player.currentMediaItemIndex) + 3)
-                    if (succeeded && generated < target) {
+                    if (succeeded && needsAudio()) {
                         scope.launch { kotlinx.coroutines.yield(); fillAhead() }
                     }
                 }
@@ -313,7 +344,14 @@ class ReadAloudService : MediaSessionService() {
     }
     private fun publish() {
         val segment = segments.getOrNull(baseSegment + maxOf(0, player.currentMediaItemIndex))
-        PlaybackSignals.mutable.value = PlaybackStatus(article?.story?.url.orEmpty(), segment?.blockId.orEmpty(), player.isPlaying, player.mediaItemCount == 0 && work?.isActive == true)
+        PlaybackSignals.mutable.value = PlaybackStatus(article?.story?.url.orEmpty(), segment?.blockId.orEmpty(), player.isPlaying,
+            player.mediaItemCount == 0 && work?.isActive == true && !speechFailed && !voiceMissing,voiceMissing,speechFailed)
+    }
+    private fun reportFailure(error:Exception,url:String=article?.story?.url.orEmpty()) {
+        voiceMissing=error is VoiceUnavailable;speechFailed=!voiceMissing
+        publish()
+        PlaybackSignals.mutable.value=PlaybackSignals.mutable.value.copy(article=url,preparing=false)
+        endPreparingIfEmpty()
     }
     private fun resetPlayer() { resetting = true; player.stop(); player.clearMediaItems(); resetting = false }
     @Suppress("DEPRECATION")
@@ -323,7 +361,9 @@ class ReadAloudService : MediaSessionService() {
         val finished=reset || (player.playbackState==Player.STATE_ENDED && generated>=segments.size)
         val segment = if(finished) 0 else (baseSegment + maxOf(0, player.currentMediaItemIndex)).coerceAtLeast(0)
         val ms = if(finished) 0L else player.currentPosition.coerceAtLeast(0)
-        scope.launch(Dispatchers.IO) { repository.dao.audioPosition(url, segment, ms) }
+        val anchor=segments.getOrNull(segment)
+        val fingerprint=audioFingerprint
+        scope.launch(Dispatchers.IO) { repository.dao.audioPosition(url, segment, ms,anchor?.blockId.orEmpty(),anchor?.start ?: 0,fingerprint) }
     }
     private fun saveQueue() {
         val payload = jsonCodec.toJson(QueueSnapshot(queue.toList(), queueIndex))
@@ -331,10 +371,12 @@ class ReadAloudService : MediaSessionService() {
     }
     private fun stopReading() {
         persist(); work?.cancel(); work = null; engine.cancel(); generation++
+        val privateFiles=if(custom) (0 until player.mediaItemCount).mapNotNull { player.getMediaItemAt(it).localConfiguration?.uri?.path } else emptyList()
         player.stop(); player.clearMediaItems(); segments = emptyList(); article = null; queue.clear()
+        speechFailed=false;voiceMissing=false
         PlaybackSignals.mutable.value = PlaybackStatus()
         endPreparingIfEmpty()
-        scope.launch(Dispatchers.IO) { audioDir.listFiles()?.forEach { it.delete() } }
+        scope.launch(Dispatchers.IO) { privateFiles.forEach { File(it).delete() } }
     }
     private fun prune(keep: Set<String>) {
         var size = 0L
