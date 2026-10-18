@@ -75,6 +75,8 @@
 
 https://github.com/pieyixi/ReadPaper-Dubao/releases/tag/v2.0.0-native-preview.1
 
-附件为 `dubao-2.0.0-native-debug.apk`、`native-evidence.zip`（构建/测试/lint 报告、联网响应与统计、截图、真实中文 WAV、证书信息）、`native-reader-tts.patch` 和 `SHA256SUMS`。APK 为 Debug 预发布，不更新旧版稳定 Release。源码仓库只提交实现、回归样本、文档，不提交二进制附件。
+云端交付文件位于 `/workspace/shared/`：`dubao-2.0.0-native-debug.apk`、`native-evidence.zip`（构建/测试/lint 报告、联网响应与统计、截图、真实中文 WAV、证书信息）、`native-reader-tts.patch` 和 `SHA256SUMS`。APK 为 Debug 预发布，不更新旧版稳定 Release。源码仓库只提交实现、回归样本、文档，不提交二进制附件。
+
+GitHub 代码推送和 Release API 写入成功，但 `uploads.github.com` 的附件上传返回 `401 Bad credentials`，使用当前云环境凭据无法上传。因此 GitHub 预发布页暂时只有说明，没有 APK 附件；上述完整文件保留在云端交付目录。附件上传未完成，不标记为已发布二进制包。
 
 已从 GitHub 下载原 v1.0.0 APK 并验证其证书 SHA-256：`0c22a51a5eda729e3e45e742e7cbd326484120b4fc924c0c6e9ddd847b4a9669`；当前 Debug 证书为 `fa1c721a72c5a7d378f1edff5a6c3770391fe6c9b049a78ff133d23b640410c1`。正式签名包仍受原签名缺失限制，不能把 Debug 包当作原版的签名兼容升级包。
