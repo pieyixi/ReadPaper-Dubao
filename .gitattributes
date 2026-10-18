@@ -1,0 +1,3 @@
+# Cloud Linux shell scripts must retain LF even with Windows core.autocrlf.
+gradlew text eol=lf
+scripts/*.sh text eol=lf

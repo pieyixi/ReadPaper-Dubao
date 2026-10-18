@@ -29,3 +29,8 @@ Thumbs.db
 
 # Test script
 /test_full.ps1
+
+# Cloud runtime state and CLI diagnostic logs
+/.cloud/
+/error.log
+/build/

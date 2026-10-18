@@ -445,9 +445,9 @@ android {
     signingConfigs {
         create("release") {
             storeFile = file("../release.jks")
-            storePassword = "sg3cxhmjyj"
+            storePassword = System.getenv("DUBAO_STORE_PASSWORD")
             keyAlias = "newspaper"
-            keyPassword = "sg3cxhmjyj"
+            keyPassword = System.getenv("DUBAO_KEY_PASSWORD")
         }
     }
     buildTypes {
