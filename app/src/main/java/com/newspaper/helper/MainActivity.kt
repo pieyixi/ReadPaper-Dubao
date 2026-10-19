@@ -142,7 +142,7 @@ class MainActivity : AppCompatActivity() {
                 speechRevision++
                 model.updateDraft(binding.noteTitle.text.toString(),s?.toString().orEmpty())
                 noteMetadata()
-                prepareEditedNote(start,false)
+                prepareEditedNote(start,false,count)
             }
             override fun afterTextChanged(s: Editable?) = Unit
         })
@@ -153,7 +153,7 @@ class MainActivity : AppCompatActivity() {
                 if(bindingDraft)return
                 speechRevision++
                 model.updateDraft(s?.toString().orEmpty(),binding.editor.text.toString());noteMetadata()
-                prepareEditedNote(start,true)
+                prepareEditedNote(start,true,count)
             }
         })
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) { override fun handleOnBackPressed() { back() } })
@@ -217,7 +217,7 @@ class MainActivity : AppCompatActivity() {
     private fun cancelNoteEdit() {
         noteEditJob?.cancel();noteEditJob=null;pendingEditNote=null;pendingEditToken=null
     }
-    private fun prepareEditedNote(offset:Int,titleChanged:Boolean) {
+    private fun prepareEditedNote(offset:Int,titleChanged:Boolean,insertedCount:Int) {
         val id=current.route.noteId ?: return
         if(pendingEditNote!=id && !(status.article.startsWith("custom:") && status.noteId==id))return
         noteEditJob?.cancel()
@@ -230,7 +230,10 @@ class MainActivity : AppCompatActivity() {
             try {
                 delay(600)
                 val line=withContext(Dispatchers.Default) {
-                    if(titleChanged)0 else body.take(offset.coerceIn(0,body.length)).count {it=='\n'}+if(title.isNotBlank())1 else 0
+                    val start=offset.coerceIn(0,body.length)
+                    // 插入内容以换行开头时，预备新增段落，不能退回换行前的旧段。
+                    val firstText=(start until (start+insertedCount).coerceAtMost(body.length)).firstOrNull {!body[it].isWhitespace()} ?: start
+                    if(titleChanged)0 else body.take(firstText).count {it=='\n'}+if(title.isNotBlank())1 else 0
                 }
                 speakDraft(title,body,id,startBlock="custom-$line",editToken=token)
             } finally {
@@ -286,7 +289,8 @@ class MainActivity : AppCompatActivity() {
         rows.appearance = appearance
     }
     private fun playOrPause() {
-        if(current.route.page==Page.CUSTOM && pendingEditNote==current.route.noteId && pendingEditToken!=null) {
+        if(current.route.page==Page.CUSTOM && ((pendingEditNote==current.route.noteId && pendingEditToken!=null) ||
+                (status.noteId==current.route.noteId && status.article.startsWith("custom:") && status.preparing))) {
             command("toggle");return
         }
         if (current.route.page==Page.READER && current.article==null) return

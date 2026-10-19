@@ -77,13 +77,15 @@ class OnlinePlaybackTest {
             waitFor("Paragraph loop did not play") {main {player.isPlaying}}
             val priorAudio=main {player.currentMediaItem!!.localConfiguration!!.uri.path}
             val beforeEdit=PlaybackSignals.state.value.article
+            var latestArticle=""
             // 同一主线程内连续输入必须只采用最后一份正文；改动落在原文第三自然段。
             scenario.onActivity {
                 val editor=it.findViewById<android.widget.EditText>(R.id.editor)
                 editor.append("现在改字");editor.append("后的原文继续循环。");editor.append("最后确认。")
+                latestArticle=Segmenter.custom(it.findViewById<android.widget.EditText>(R.id.noteTitle).text.toString()+"\n"+editor.text).story.url
             }
             waitFor("Editing a playing paragraph loop did not resume latest text") {
-                PlaybackSignals.state.value.article!=beforeEdit && PlaybackSignals.state.value.block=="custom-3" &&
+                PlaybackSignals.state.value.article==latestArticle && PlaybackSignals.state.value.article!=beforeEdit && PlaybackSignals.state.value.block=="custom-3" &&
                     main {player.isPlaying&&player.currentPosition>50&&player.currentMediaItem?.localConfiguration?.uri?.path!=priorAudio}
             }
             assertEquals(PlaybackMode.PARAGRAPH_LOOP,PlaybackSignals.state.value.mode)
