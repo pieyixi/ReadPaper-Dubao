@@ -36,7 +36,7 @@ class OnlinePlaybackTest {
         fail("$message: ${PlaybackSignals.state.value}")
     }
     private fun shell(command:String) = android.os.ParcelFileDescriptor.AutoCloseInputStream(instrumentation.uiAutomation.executeShellCommand(command)).bufferedReader().use { it.readText() }
-    @Test fun pastedNoteUsesOnlineYunyangAndStopsOnEditing() {
+    @Test fun pastedNoteUsesOnlineYunyangAndPrefetchesEditsWithoutLosingLoopOrPause() {
         val settings=SettingsStore(app)
         runBlocking {settings.route(jsonCodec.toJson(Route()));settings.appearance(0,2,2);settings.playbackMode(PlaybackMode.FULL_ONCE)}
         val future=main {MediaController.Builder(app,SessionToken(app,ComponentName(app,ReadAloudService::class.java))).buildAsync()}
@@ -64,16 +64,56 @@ class OnlinePlaybackTest {
             File(evidence,"pasted-speech.png").outputStream().use {instrumentation.uiAutomation.takeScreenshot().compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)}
             main {player.play()}
             waitFor("Pasted audio did not resume") {main {player.isPlaying}}
+            val oldArticle=PlaybackSignals.state.value.article
             scenario.onActivity {it.findViewById<android.widget.EditText>(R.id.editor).append("\n编辑后旧声音必须停止。")}
-            waitFor("Editing did not cancel old audio") {main {player.mediaItemCount==0}&&PlaybackSignals.state.value.article.isEmpty()}
+            waitFor("Edited paragraph was not prepared") {PlaybackSignals.state.value.article!=oldArticle && PlaybackSignals.state.value.block=="custom-3" && main {player.mediaItemCount>0&&player.duration>0}}
+            assertFalse("Editing in play-once mode resumed automatically",main {player.playWhenReady})
             waitFor("Edited note was not saved") {runBlocking {ReaderDatabase.get(app).reader().note(checkNotNull(noteId))?.content?.endsWith("编辑后旧声音必须停止。")==true}}
-            waitFor("Stopped private audio was not removed") {!File(path).exists()}
-            File(evidence,"pasted-playback.json").writeText(jsonCodec.toJson(mapOf("online_mp3" to true,"private_cache" to true,"pause_resume" to true,"editing_cancels_old_audio" to true,"local_note_saved" to true)))
+            assertTrue("Stopping/editing discarded reusable note audio",File(path).exists())
+            assertTrue("Note audio must remain in private non-backup storage",File(path).canonicalPath.startsWith(app.noBackupFilesDir.canonicalPath+File.separator))
+            fun command(name:String)=main {player.sendCustomCommand(SessionCommand(name,Bundle.EMPTY),Bundle.EMPTY)}.get(10,TimeUnit.SECONDS)
+            while(PlaybackSignals.state.value.mode!=PlaybackMode.PARAGRAPH_LOOP)command("cycleMode")
+            main {player.play()}
+            waitFor("Paragraph loop did not play") {main {player.isPlaying}}
+            val priorAudio=main {player.currentMediaItem!!.localConfiguration!!.uri.path}
+            val beforeEdit=PlaybackSignals.state.value.article
+            // 同一主线程内连续输入必须只采用最后一份正文；改动落在原文第三自然段。
+            scenario.onActivity {
+                val editor=it.findViewById<android.widget.EditText>(R.id.editor)
+                editor.append("现在改字");editor.append("后的原文继续循环。");editor.append("最后确认。")
+            }
+            waitFor("Editing a playing paragraph loop did not resume latest text") {
+                PlaybackSignals.state.value.article!=beforeEdit && PlaybackSignals.state.value.block=="custom-3" &&
+                    main {player.isPlaying&&player.currentPosition>50&&player.currentMediaItem?.localConfiguration?.uri?.path!=priorAudio}
+            }
+            assertEquals(PlaybackMode.PARAGRAPH_LOOP,PlaybackSignals.state.value.mode)
+            val editedAudio=main {player.currentMediaItem!!.localConfiguration!!.uri.path}
+            main {player.pause()}
+            val pausedArticle=PlaybackSignals.state.value.article
+            scenario.onActivity {it.findViewById<android.widget.EditText>(R.id.editor).append("暂停时只准备音频。")}
+            waitFor("Paused edit was not prefetched") {PlaybackSignals.state.value.article!=pausedArticle && main {player.mediaItemCount>0&&player.duration>0&&player.currentMediaItem?.localConfiguration?.uri?.path!=editedAudio}}
+            Thread.sleep(800)
+            assertFalse("Paused edit started speaking",main {player.playWhenReady||player.isPlaying})
+            assertTrue("An unrelated title clip was removed by editing",File(path).isFile)
+            main {player.play()}
+            waitFor("Prepared edited paragraph did not resume") {main {player.isPlaying}}
+            val cachedPath=main {player.currentMediaItem!!.localConfiguration!!.uri.path}
+            main {player.seekTo((player.duration-80).coerceAtLeast(0))}
+            waitFor("Edited paragraph did not loop from its start") {main {player.isPlaying&&player.currentPosition in 50..1500}}
+            assertEquals(cachedPath,main {player.currentMediaItem!!.localConfiguration!!.uri.path})
+            scenario.onActivity {it.findViewById<android.widget.EditText>(R.id.editor).append("停止后不能再自动播放。")}
+            command("stop")
+            Thread.sleep(2500)
+            assertEquals("A delayed edited request resurrected stopped audio",0,main {player.mediaItemCount})
+            assertTrue(PlaybackSignals.state.value.article.isEmpty())
+            File(evidence,"pasted-playback.json").writeText(jsonCodec.toJson(mapOf("online_mp3" to true,"private_cache" to true,"pause_resume" to true,
+                "editing_cancels_old_audio" to true,"local_note_saved" to true,"edited_paragraph_prefetched" to true,
+                "loop_uses_latest_original_text" to true,"paused_edit_stays_paused" to true,"stop_rejects_delayed_edit" to true)))
             shell("mkdir -p /sdcard/Download/dubao-online-evidence")
             shell("cp -r /sdcard/Android/data/com.newspaper.helper/files/online-evidence/. /sdcard/Download/dubao-online-evidence/")
         }} finally {
             runCatching {main {player.sendCustomCommand(SessionCommand("stop",Bundle.EMPTY),Bundle.EMPTY)}.get(10,TimeUnit.SECONDS)}
-            noteId?.let {runBlocking {ReaderDatabase.get(app).reader().deleteNotes(listOf(it))}}
+            noteId?.let {runBlocking {ReaderDatabase.get(app).reader().deleteNotes(listOf(it));SpeechAudioCache(SpeechAudioCache.root(app)).deleteNotes(listOf(it))}}
             main {player.release()}
         }
     }
@@ -115,6 +155,7 @@ class OnlinePlaybackTest {
             command("speak",Bundle().apply { putString("request",jsonCodec.toJson(SpeechRequest(stories=listOf(article.story)))) })
             waitFor("Mode fixture did not play") { main { player.isPlaying && player.currentPosition>80 } }
             main { player.pause() }
+            val firstAudio=File(main {checkNotNull(player.currentMediaItem?.localConfiguration?.uri?.path)})
             ActivityScenario.launch(MainActivity::class.java).use { scenario ->
                 waitFor("Mode reader did not load") {
                     var ready=false
@@ -150,8 +191,19 @@ class OnlinePlaybackTest {
                 skip(plan.lastIndex-PlaybackSignals.state.value.segmentIndex)
                 waitFor("Tail did not load") { at(plan.lastIndex) }
                 assertFalse("Tail must test restart outside rolling window",main { (0 until player.mediaItemCount).any { player.getMediaItemAt(it).mediaId=="0" } })
-                nearEndAndPlay()
-                waitFor("Full loop failed to return to article start") { at(0) && main { player.isPlaying && player.currentPosition>50 } }
+                assertTrue("Article start was evicted with the player window",firstAudio.exists())
+                val rewritten=java.util.Collections.synchronizedList(mutableListOf<String>())
+                @Suppress("DEPRECATION")
+                val observer=object:android.os.FileObserver(firstAudio.parentFile!!.absolutePath,android.os.FileObserver.CREATE or android.os.FileObserver.MOVED_TO) {
+                    override fun onEvent(event:Int,path:String?) {if(path?.startsWith(firstAudio.nameWithoutExtension)==true)rewritten+=path}
+                }
+                observer.startWatching()
+                try {
+                    nearEndAndPlay()
+                    waitFor("Full loop failed to return to article start") { at(0) && main { player.isPlaying && player.currentPosition>50 } }
+                    assertEquals(firstAudio.absolutePath,main {player.currentMediaItem?.localConfiguration?.uri?.path})
+                    assertTrue("Loop regenerated its cached first segment: $rewritten",rewritten.isEmpty())
+                } finally {observer.stopWatching()}
                 main { player.pause() }
                 // 当前缓冲确实包含下个自然段，选择单段模式后必须将它裁掉。
                 waitFor("No next paragraph was prefetched") { main { (0 until player.mediaItemCount).any { player.getMediaItemAt(it).mediaId.toInt()>paragraph.last } } }
@@ -187,7 +239,8 @@ class OnlinePlaybackTest {
                 assertEquals(article.story.url,PlaybackSignals.state.value.article)
                 File(evidence,"repeat-modes.json").writeText(jsonCodec.toJson(mapOf(
                     "original_paragraph_chunks" to paragraph.count(),"article_chunks" to plan.size,
-                    "full_loop_returns_to_start" to true,"paragraph_keeps_all_chunks" to true,"once_pauses_at_end" to true)))
+                    "full_loop_returns_to_start" to true,"first_segment_reused_without_regeneration" to true,
+                    "paragraph_keeps_all_chunks" to true,"once_pauses_at_end" to true)))
             }
             command("stop")
             Thread.sleep(1000)

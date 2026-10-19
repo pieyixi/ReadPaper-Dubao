@@ -40,7 +40,8 @@ object PlaybackSignals {
     internal val mutable = MutableStateFlow(PlaybackStatus())
     val state = mutable.asStateFlow()
 }
-data class SpeechRequest(val stories: List<Story> = emptyList(), val custom: String? = null, val append: Boolean = false,val noteId:String?=null)
+data class SpeechRequest(val stories: List<Story> = emptyList(), val custom: String? = null, val append: Boolean = false,val noteId:String?=null,
+    val startBlock:String?=null,val editToken:String?=null)
 data class QueueSnapshot(val stories: List<Story>, val index: Int)
 
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
@@ -67,18 +68,19 @@ class ReadAloudService : MediaSessionService() {
     private var resumeMs = 0L
     private var custom = false
     private var customNoteId:String?=null
+    private var noteEditToken:String?=null
     private var resetting = false
     private var contentReady = false
     private var mode = PlaybackMode.FULL_ONCE
     private var modeRevision = 0L
     private var paragraph = IntRange.EMPTY
-    private lateinit var audioDir: File
+    private lateinit var audioCache:SpeechAudioCache
     override fun onCreate() {
         super.onCreate()
         repository = ArticleRepository(this)
         engine = EdgeSpeechEngine()
-        audioDir = File(cacheDir, "speech")
-        scope.launch(Dispatchers.IO) { audioDir.mkdirs(); prune(emptySet()) }
+        audioCache=SpeechAudioCache(SpeechAudioCache.root(this),File(cacheDir,"speech"))
+        scope.launch {audioCache.prune(force=true)}
         player = ExoPlayer.Builder(this).build().apply {
             setWakeMode(C.WAKE_MODE_LOCAL)
             setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_SPEECH).build(), true)
@@ -126,16 +128,30 @@ class ReadAloudService : MediaSessionService() {
                         MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS.buildUpon().add(SessionCommand("speak", Bundle.EMPTY))
                             .add(SessionCommand("stop", Bundle.EMPTY)).add(SessionCommand("step", Bundle.EMPTY)).add(SessionCommand("toggle", Bundle.EMPTY))
                             .add(SessionCommand("refreshVoice", Bundle.EMPTY)).add(SessionCommand("resumeQueue", Bundle.EMPTY))
-                            .add(SessionCommand("cycleMode", Bundle.EMPTY)).build()).build()
+                            .add(SessionCommand("cycleMode", Bundle.EMPTY)).add(SessionCommand("invalidateNote",Bundle.EMPTY)).build()).build()
                 override fun onCustomCommand(session: MediaSession, controller: MediaSession.ControllerInfo, customCommand: SessionCommand, args: Bundle): ListenableFuture<SessionResult> {
                     when (customCommand.customAction) {
                         "speak" -> {
                             val request = runCatching { jsonCodec.fromJson(args.getString("request"), SpeechRequest::class.java) }.getOrNull()
                                 ?: return Futures.immediateFuture(SessionResult(SessionResult.RESULT_ERROR_BAD_VALUE))
-                            if (request.append && request.custom == null && queue.isNotEmpty()) {
+                            // 停止、切文或后续输入使编辑令牌失效，迟到的新音频不能重启旧便签。
+                            if(request.editToken!=null && (request.editToken!=noteEditToken || request.noteId!=customNoteId)) {
+                                request.custom?.takeIf {it.matches(Regex("[a-f0-9]{64}\\.txt"))}?.let {name->
+                                    scope.launch(Dispatchers.IO) {File(File(cacheDir,"speech-input"),name).delete()}
+                                }
+                            } else if (request.append && request.custom == null && queue.isNotEmpty()) {
                                 queue += request.stories.filter { candidate -> queue.none { it.url == candidate.url } }
                                 saveQueue()
-                            } else start(request)
+                            } else start(request,if(request.editToken!=null)desiredPlay else true)
+                        }
+                        "invalidateNote" -> if(custom && args.getString("noteId")==customNoteId) {
+                            val current=currentSegmentIndex()
+                            // 单段循环保留播放/暂停意图；其余模式编辑后只预备，不擅自恢复出声。
+                            if(noteEditToken==null && mode!=PlaybackMode.PARAGRAPH_LOOP)desiredPlay=false
+                            work?.cancel();work=null;engine.cancel();generation++
+                            resetPlayer();contentReady=false;baseSegment=current
+                            noteEditToken=args.getString("token")
+                            publish()
                         }
                         "stop" -> stopReading()
                         "step" -> seekSegment(args.getInt("delta", 1))
@@ -210,7 +226,7 @@ class ReadAloudService : MediaSessionService() {
         }
     }
 
-    private fun start(request: SpeechRequest) {
+    private fun start(request: SpeechRequest,play:Boolean=true) {
         ensureForeground()
         persist()
         work?.cancel(); engine.cancel(); generation++
@@ -218,18 +234,21 @@ class ReadAloudService : MediaSessionService() {
         resetPlayer()
         contentReady=false
         segments = emptyList()
-        desiredPlay = true
+        desiredPlay = play
+        noteEditToken=null
         queue.clear(); queue += request.stories; queueIndex = 0
         custom = request.custom != null
         customNoteId=if(custom)request.noteId else null
         if (request.custom != null) {
+            article=null
+            PlaybackSignals.mutable.value=PlaybackStatus(article="custom:preparing",preparing=true,mode=mode,noteId=customNoteId)
             work = scope.launch {
                 try {
                     val input = File(File(cacheDir, "speech-input"), request.custom)
                     require(request.custom.matches(Regex("[a-f0-9]{64}\\.txt")))
                     val text = withContext(Dispatchers.IO) { input.readText().also { input.delete() } }
                     val textArticle = withContext(Dispatchers.Default) { Segmenter.custom(text) }
-                    begin(textArticle, true)
+                    begin(textArticle, request.startBlock==null,request.startBlock)
                 } catch (e: CancellationException) { throw e }
                 catch (e: Exception) { reportFailure(e) }
             }
@@ -251,6 +270,7 @@ class ReadAloudService : MediaSessionService() {
     }
     private fun loadStory(story: Story, restore: Boolean) {
         customNoteId=null
+        noteEditToken=null
         work?.cancel(); engine.cancel(); generation++
         val token = generation
         resetPlayer()
@@ -268,22 +288,29 @@ class ReadAloudService : MediaSessionService() {
             catch (e: Exception) { reportFailure(e,story.url) }
         }
     }
-    private suspend fun begin(loaded: Article, restore: Boolean) {
+    private suspend fun begin(loaded: Article, restore: Boolean,startBlock:String?=null) {
         article = loaded
         segments = withContext(Dispatchers.Default) { Segmenter.split(loaded) }
         durations=LongArray(segments.size)
-        // 用户已选择粘贴文本也使用免费云扬；私人音频仍独立缓存并在停止后清除。
+        // 正文和便签都使用本机持久音频；私有目录不参与系统云备份，停止不清除已合成片段。
         usingOnline=true
         custom=SpeechPolicy.privateText(loaded)
+        audioCache.activate(SpeechAudioCache.owner(loaded.story.url,custom,customNoteId))
         engine.close()
         engine=EdgeSpeechEngine()
         if(segments.isNotEmpty()) prepareEngine(loaded)
         val position = if (restore) repository.dao.position(loaded.story.url) else null
         if (position==null && custom) repository.dao.savePosition(ReadingPosition(loaded.story.url))
         val restored=withContext(Dispatchers.Default) { SpeechPolicy.resume(position,loaded,segments,audioFingerprint) }
-        baseSegment = restored.first
+        // 编辑从改动的原文自然段开始；空段被删除时定位到其后的首个有效段，末尾则回退。
+        val editedLine=startBlock?.removePrefix("custom-")?.toIntOrNull()
+        val editedIndex=editedLine?.let {line->
+            segments.indexOfFirst {(it.blockId.removePrefix("custom-").toIntOrNull() ?: -1)>=line}.takeIf {it>=0}
+                ?: segments.lastIndex.takeIf {it>=0}?.let {PlaybackBounds.paragraph(segments,it).first}
+        }
+        baseSegment = editedIndex ?: restored.first
         generated = baseSegment
-        resumeMs = restored.second
+        resumeMs = if(startBlock==null)restored.second else 0L
         paragraph=PlaybackBounds.paragraph(segments,baseSegment)
         contentReady=true
         speechFailed=false;voiceMissing=false
@@ -314,13 +341,12 @@ class ReadAloudService : MediaSessionService() {
             try {
                 while (needsAudio() && token == generation) {
                     val segment = segments[generated]
-                    val clip=withTimeout(60000) { SpeechAudioCache(audioDir).render(segment,engine,custom) }
+                    val clip=withTimeout(60000) { audioCache.render(segment,engine,custom,customNoteId) }
                     if (token != generation) {
                         return@launch
                     }
                     // 切换自然段循环后，之前正在合成的后续段不得越过新的原文边界入队。
                     if(segment.index!=generated || segment.index>=synthesisEnd()) {
-                        if(custom) withContext(Dispatchers.IO) { clip.file.delete() }
                         continue
                     }
                     durations[generated]=clip.durationMs
@@ -333,8 +359,7 @@ class ReadAloudService : MediaSessionService() {
                     if (first) { player.prepare(); player.seekTo(0, resumeMs); player.playWhenReady = desiredPlay }
                     else if (ended && desiredPlay) { player.seekToNextMediaItem(); player.prepare(); player.playWhenReady = true }
                     publish()
-                    val keep = (0 until player.mediaItemCount).mapNotNull { i -> player.getMediaItemAt(i).localConfiguration?.uri?.path }.toSet()
-                    withContext(Dispatchers.IO) { prune(keep) }
+                    audioCache.prune()
                 }
                 succeeded = true
             } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
@@ -439,20 +464,13 @@ class ReadAloudService : MediaSessionService() {
     }
     private fun stopReading() {
         persist(); work?.cancel(); work = null; engine.cancel(); generation++
-        val privateFiles=if(custom) (0 until player.mediaItemCount).mapNotNull { player.getMediaItemAt(it).localConfiguration?.uri?.path } else emptyList()
         // 停止期间禁止清空媒体项的回调再次触发预取，避免旧稿在停止后重新入队。
-        resetPlayer(); contentReady=false; segments = emptyList(); article = null;customNoteId=null; queue.clear()
+        resetPlayer(); contentReady=false; segments = emptyList(); article = null;customNoteId=null;noteEditToken=null; queue.clear()
         speechFailed=false;voiceMissing=false
         PlaybackSignals.mutable.value = PlaybackStatus(mode=mode)
         endPreparingIfEmpty()
-        scope.launch(Dispatchers.IO) { privateFiles.forEach { File(it).delete() } }
-    }
-    private fun prune(keep: Set<String>) {
-        var size = 0L
-        audioDir.listFiles()?.sortedByDescending { it.lastModified() }?.forEach { file ->
-            size += file.length()
-            if (file.absolutePath !in keep && (size > 32 * 1024 * 1024 || System.currentTimeMillis() - file.lastModified() > 24 * 60 * 60 * 1000)) file.delete()
-        }
+        audioCache.activate(null)
+        scope.launch {audioCache.prune(force=true)}
     }
     override fun onTaskRemoved(rootIntent: Intent?) {
         if (!desiredPlay && work?.isActive != true) { persist(); stopSelf() }

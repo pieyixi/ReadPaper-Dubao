@@ -176,7 +176,11 @@ class ReaderViewModel(application: Application, private val saved: SavedStateHan
     }
     fun deleteNotes() {
         val ids=screen.value.selected.toList();if(ids.isEmpty())return
-        viewModelScope.launch { try { lastWrite?.join();repository.dao.deleteNotes(ids);selection() } catch(e:Exception) { mutable.value=mutable.value.copy(noteError=true) } }
+        viewModelScope.launch { try {
+            lastWrite?.join();repository.dao.deleteNotes(ids)
+            SpeechAudioCache(SpeechAudioCache.root(getApplication())).deleteNotes(ids)
+            selection()
+        } catch(e:Exception) { mutable.value=mutable.value.copy(noteError=true) } }
     }
     suspend fun customArticle(): Article {val title=draftTitle;val body=draft;return withContext(Dispatchers.Default) {Segmenter.custom(listOf(title,body).filter(String::isNotBlank).joinToString("\n"))}}
 }

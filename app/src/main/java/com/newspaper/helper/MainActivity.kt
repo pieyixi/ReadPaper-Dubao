@@ -31,6 +31,9 @@ import com.newspaper.helper.databinding.ActivityMainBinding
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.delay
 import java.io.File
 
 class MainActivity : AppCompatActivity() {
@@ -58,6 +61,9 @@ class MainActivity : AppCompatActivity() {
     private val directoryScroll=mutableMapOf<Route,Pair<Int,Int>>()
     private var lastNoteError=false
     private var speechRevision=0L
+    private var noteEditJob:Job?=null
+    private var pendingEditNote:String?=null
+    private var pendingEditToken:String?=null
     private var pendingSpeech: SpeechRequest? = null
     private var voiceSettingsOpened = false
     val palette: Palette get() = Palette.forTheme(appearance.theme)
@@ -136,7 +142,7 @@ class MainActivity : AppCompatActivity() {
                 speechRevision++
                 model.updateDraft(binding.noteTitle.text.toString(),s?.toString().orEmpty())
                 noteMetadata()
-                if (status.article.startsWith("custom:") && status.noteId==current.route.noteId) command("stop")
+                prepareEditedNote(start,false)
             }
             override fun afterTextChanged(s: Editable?) = Unit
         })
@@ -147,7 +153,7 @@ class MainActivity : AppCompatActivity() {
                 if(bindingDraft)return
                 speechRevision++
                 model.updateDraft(s?.toString().orEmpty(),binding.editor.text.toString());noteMetadata()
-                if(status.article.startsWith("custom:")&&status.noteId==current.route.noteId)command("stop")
+                prepareEditedNote(start,true)
             }
         })
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) { override fun handleOnBackPressed() { back() } })
@@ -175,7 +181,7 @@ class MainActivity : AppCompatActivity() {
                             val end = edit.indexOf('\n',start).let { if (it < 0) edit.length else it }
                             if (start < end) {
                                 edit.setSpan(android.text.style.BackgroundColorSpan(if (appearance.theme==1) 0xff273848.toInt() else 0xffedf3f8.toInt()),start,end,android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                                if (playback.playing) binding.editor.bringPointIntoView(start)
+                                if (playback.playing && !binding.editor.hasFocus() && !binding.noteTitle.hasFocus()) binding.editor.bringPointIntoView(start)
                             }
                         }
                     }
@@ -207,7 +213,45 @@ class MainActivity : AppCompatActivity() {
         if(model.screen.value.route==current.route)returning=false
     }
     fun expandFrom(source:View,color:Int=ChromeColors.forTheme(appearance.theme).accent) {motion.expand(source,color)}
-    fun deletedNotes(ids:Set<String>) {if(status.noteId in ids)command("stop")}
+    fun deletedNotes(ids:Set<String>) {if(status.noteId in ids || pendingEditNote in ids)command("stop")}
+    private fun cancelNoteEdit() {
+        noteEditJob?.cancel();noteEditJob=null;pendingEditNote=null;pendingEditToken=null
+    }
+    private fun prepareEditedNote(offset:Int,titleChanged:Boolean) {
+        val id=current.route.noteId ?: return
+        if(pendingEditNote!=id && !(status.article.startsWith("custom:") && status.noteId==id))return
+        noteEditJob?.cancel()
+        val title=model.draftTitle;val body=model.draft
+        val token=java.util.UUID.randomUUID().toString()
+        pendingEditNote=id;pendingEditToken=token
+        // 先取消旧稿，再防抖预取最新原文；令牌由服务校验，停止后迟到的编辑不能自行出声。
+        command("invalidateNote",Bundle().apply {putString("noteId",id);putString("token",token)})
+        noteEditJob=lifecycleScope.launch {
+            try {
+                delay(600)
+                val line=withContext(Dispatchers.Default) {
+                    if(titleChanged)0 else body.take(offset.coerceIn(0,body.length)).count {it=='\n'}+if(title.isNotBlank())1 else 0
+                }
+                speakDraft(title,body,id,startBlock="custom-$line",editToken=token)
+            } finally {
+                if(pendingEditToken==token) {pendingEditToken=null;pendingEditNote=null;noteEditJob=null}
+            }
+        }
+    }
+    private suspend fun speakDraft(title:String,body:String,noteId:String?,revision:Long=speechRevision,startBlock:String?=null,editToken:String?=null) {
+        val draft=withContext(Dispatchers.Default) {listOf(title,body).filter(String::isNotBlank).joinToString("\n")}
+        if(draft.isBlank()) {command("stop");return}
+        val input=File(File(cacheDir,"speech-input"),stableId(java.util.UUID.randomUUID().toString())+".txt")
+        var submitted=false
+        try {
+            withContext(Dispatchers.IO) {input.parentFile?.mkdirs();input.writeText(draft)}
+            if(if(editToken!=null)pendingEditToken==editToken else revision==speechRevision) {
+                sendSpeech(SpeechRequest(custom=input.name,noteId=noteId,startBlock=startBlock,editToken=editToken));submitted=true
+            }
+        } finally {
+            if(!submitted)withContext(NonCancellable+Dispatchers.IO) {input.delete()}
+        }
+    }
     fun toolbarScrolled(scrolled:Boolean) {binding.toolbar.elevation=if(scrolled)dp(1).toFloat() else 0f}
     private fun noteMetadata() {
         val title=binding.noteTitle.text.toString();val body=binding.editor.text.toString()
@@ -242,6 +286,9 @@ class MainActivity : AppCompatActivity() {
         rows.appearance = appearance
     }
     private fun playOrPause() {
+        if(current.route.page==Page.CUSTOM && pendingEditNote==current.route.noteId && pendingEditToken!=null) {
+            command("toggle");return
+        }
         if (current.route.page==Page.READER && current.article==null) return
         if (status.voiceMissing) {
             voiceSettingsOpened = true
@@ -259,18 +306,7 @@ class MainActivity : AppCompatActivity() {
             if (target != null && target != status.article || status.failed || controller?.mediaItemCount == 0) {
                 if (current.route.page == Page.CUSTOM) {
                     val title=model.draftTitle;val body=model.draft
-                    val draft = withContext(Dispatchers.Default) {listOf(title,body).filter(String::isNotBlank).joinToString("\n")}
-                    if (draft.isNotBlank()) {
-                        val name = withContext(Dispatchers.IO) {
-                            val directory = File(cacheDir, "speech-input").apply { mkdirs() }
-                            directory.listFiles()?.forEach { it.delete() }
-                            val name = stableId(draft) + ".txt"
-                            File(directory,name).writeText(draft)
-                            name
-                        }
-                        if(revision==speechRevision)sendSpeech(SpeechRequest(custom = name,noteId=current.route.noteId))
-                        else withContext(Dispatchers.IO) {File(File(cacheDir,"speech-input"),name).delete()}
-                    }
+                    speakDraft(title,body,current.route.noteId,revision)
                 }
                 else current.article?.let { sendSpeech(SpeechRequest(stories = listOf(it.story))) }
             } else {
@@ -278,7 +314,10 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
-    private fun command(action: String, bundle: Bundle = Bundle.EMPTY) { controller?.sendCustomCommand(SessionCommand(action, Bundle.EMPTY), bundle) }
+    private fun command(action: String, bundle: Bundle = Bundle.EMPTY) {
+        if(action=="stop") {cancelNoteEdit();speechRevision++;pendingSpeech=null}
+        controller?.sendCustomCommand(SessionCommand(action, Bundle.EMPTY), bundle)
+    }
     private fun sendSpeech(request: SpeechRequest) {
         if (controller == null) { pendingSpeech = request; if (controllerFuture?.isDone == true) connectController(); return }
         command("speak", Bundle().apply { putString("request", jsonCodec.toJson(request)) })

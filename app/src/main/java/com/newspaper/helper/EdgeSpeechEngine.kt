@@ -32,7 +32,7 @@ import kotlin.coroutines.coroutineContext
 internal class OnlineSpeechFailure(val status: Int = 0, val serverDate: String? = null, val retryMs: Long = 1000) :
     IOException("Online speech failed ($status)")
 
-/** 仅接收明确选择在线朗读的正文；粘贴文本由服务层路由到离线引擎。 */
+/** 合成用户选择朗读的报纸或便签；服务层先查本机音频，未命中才建立在线连接。 */
 internal class EdgeSpeechEngine(
     private val client: OkHttpClient = OkHttpClient.Builder().connectTimeout(10,TimeUnit.SECONDS)
         .readTimeout(20,TimeUnit.SECONDS).build(),
