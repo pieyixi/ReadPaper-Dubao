@@ -93,6 +93,9 @@ class OnlinePlaybackTest {
             Thread.sleep(2000)
             assertEquals("Cancelled prefetch restarted after stop",0,main { player.mediaItemCount })
             assertFalse(PlaybackSignals.state.value.playing)
+            // AGP 测试结束会卸载应用，提前将公开新闻样本证据导出到模拟器共享目录。
+            shell("mkdir -p /sdcard/Download/dubao-online-evidence")
+            shell("cp -r /sdcard/Android/data/com.newspaper.helper/files/online-evidence/. /sdcard/Download/dubao-online-evidence/")
         } finally {
             shell("input keyevent 224");shell("wm dismiss-keyguard")
             runCatching { command("stop") };main { player.release() }

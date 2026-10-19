@@ -58,7 +58,7 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           script: |
             bash ./gradlew --no-daemon --console=plain connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.newspaper.helper.OnlinePlaybackTest
-            adb pull /sdcard/Android/data/com.newspaper.helper/files/online-evidence app/build/speech-evidence/android
+            adb pull /sdcard/Download/dubao-online-evidence app/build/speech-evidence/android
       - name: Upload APK and validation evidence
         if: always()
         uses: actions/upload-artifact@v4
