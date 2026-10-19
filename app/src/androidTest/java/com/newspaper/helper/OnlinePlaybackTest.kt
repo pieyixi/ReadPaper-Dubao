@@ -94,8 +94,10 @@ class OnlinePlaybackTest {
                         instrumentation.uiAutomation.takeScreenshot().compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)
                     }
                 }
-                scenario.onActivity { it.window.decorView.findViewWithTag<android.widget.TextView>(1.25f).performClick() }
-                waitFor("Toolbar speed control did not reach service") { main { player.playbackParameters.speed==1.25f } }
+                for(rate in listOf(.8f,1f,1.1f,1.2f,1.3f)) {
+                    scenario.onActivity { it.window.decorView.findViewWithTag<android.widget.TextView>(rate).performClick() }
+                    waitFor("Toolbar speed $rate did not reach service") { main { player.playbackParameters.speed==rate } }
+                }
                 scenario.onActivity { it.window.decorView.findViewWithTag<GlyphView>("speechPlay").performClick() }
                 waitFor("Toolbar pause did not reach service") { main { !player.playWhenReady } }
                 scenario.onActivity { it.window.decorView.findViewWithTag<GlyphView>("speechPlay").performClick() }

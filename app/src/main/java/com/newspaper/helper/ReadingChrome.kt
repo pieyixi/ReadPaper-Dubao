@@ -243,7 +243,7 @@ internal class ReadingChrome(
         button(Glyph.STOP,R.string.a11y_stop) { command("stop",Bundle.EMPTY) }
         add(controls,margin=10)
         val rates=row().apply { background=box(ink.panel,12); setPadding(dp(3),dp(3),dp(3),dp(3)) }
-        listOf(.75f,1f,1.25f,1.5f,2f).forEach { rate ->
+        listOf(.8f,1f,1.1f,1.2f,1.3f).forEach { rate ->
             val button=text("${java.text.DecimalFormat("0.##",java.text.DecimalFormatSymbols(Locale.ROOT)).format(rate)}×").apply {
                 tag=rate; gravity=Gravity.CENTER; isClickable=true; isFocusable=true
                 contentDescription="${label(R.string.a11y_speed)} $text"
