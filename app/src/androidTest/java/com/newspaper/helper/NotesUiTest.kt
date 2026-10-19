@@ -5,11 +5,15 @@ import android.view.View
 import android.widget.EditText
 import android.widget.TextView
 import androidx.lifecycle.ViewModelProvider
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.recyclerview.widget.RecyclerView
 import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.action.ViewActions.click
 import androidx.test.espresso.action.ViewActions.longClick
+import androidx.test.espresso.action.ViewActions.swipeUp
+import androidx.test.espresso.Espresso.closeSoftKeyboard
 import androidx.test.espresso.matcher.ViewMatchers.withId
 import androidx.test.espresso.matcher.ViewMatchers.withTagValue
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -33,6 +37,47 @@ class NotesUiTest {
         val file=File(directory,"${app.resources.configuration.screenWidthDp}-notes-$name.png")
         file.outputStream().use {ins.uiAutomation.takeScreenshot().compress(Bitmap.CompressFormat.PNG,100,it)}
         shell("mkdir -p /sdcard/Download/dubao-topbar-evidence");shell("cp ${file.absolutePath} /sdcard/Download/dubao-topbar-evidence/")
+    }
+    @Test fun hidingKeyboardEndsEditingAndSwipingReadsUntilTappedAgain() {
+        val store=SettingsStore(app)
+        runBlocking {store.route(jsonCodec.toJson(Route()))}
+        val text="收起输入法后应当用于上下阅读，轻点正文才重新编辑。\n".repeat(100)
+        var noteId:String?=null
+        try {ActivityScenario.launch(MainActivity::class.java).use {scenario ->
+            fun ime():Boolean {var shown=false;scenario.onActivity {shown=ViewCompat.getRootWindowInsets(it.findViewById(R.id.root))?.isVisible(WindowInsetsCompat.Type.ime())==true};return shown}
+            onView(withId(R.id.paste)).perform(click())
+            waitFor("notes missing"){var ok=false;scenario.onActivity {ok=it.findViewById<View>(R.id.newNote).isShown};ok}
+            onView(withId(R.id.newNote)).perform(click())
+            waitFor("editor loading"){var ok=false;scenario.onActivity {ok=it.findViewById<EditText>(R.id.editor).isShown&&it.findViewById<EditText>(R.id.editor).isEnabled};ok}
+            scenario.onActivity {
+                noteId=ViewModelProvider(it)[ReaderViewModel::class.java].screen.value.route.noteId
+                val editor=it.findViewById<EditText>(R.id.editor)
+                assertFalse("Entering a note should start in reading state",editor.hasFocus())
+                editor.setText(text);editor.setSelection(0)
+            }
+            onView(withId(R.id.editor)).perform(click())
+            waitFor("tap did not open IME",::ime)
+            scenario.onActivity {assertTrue(it.findViewById<EditText>(R.id.editor).isCursorVisible)}
+            closeSoftKeyboard()
+            waitFor("keyboard close did not finish editing") {
+                var done=false;scenario.onActivity {val editor=it.findViewById<EditText>(R.id.editor);done=!editor.hasFocus()&&!editor.isCursorVisible};done&&!ime()
+            }
+            scenario.onActivity {it.findViewById<EditText>(R.id.editor).scrollTo(0,0)}
+            onView(withId(R.id.editor)).perform(swipeUp())
+            scenario.onActivity {
+                val editor=it.findViewById<EditText>(R.id.editor)
+                assertTrue("Reading swipe did not scroll",editor.scrollY>0)
+                assertFalse("Reading swipe returned to editing",editor.hasFocus())
+                assertFalse(editor.isCursorVisible);assertEquals(text,editor.text.toString())
+                assertEquals(Page.CUSTOM,ViewModelProvider(it)[ReaderViewModel::class.java].screen.value.route.page)
+            }
+            assertFalse("Reading swipe reopened IME",ime())
+            shot("keyboard-hidden-reading")
+            onView(withId(R.id.editor)).perform(click())
+            waitFor("tap after reading did not reopen IME",::ime)
+            scenario.onActivity {val editor=it.findViewById<EditText>(R.id.editor);assertTrue(editor.hasFocus());assertTrue(editor.isCursorVisible);assertEquals(text,editor.text.toString())}
+            closeSoftKeyboard()
+        }} finally {runBlocking {noteId?.let {ReaderDatabase.get(app).reader().deleteNotes(listOf(it))};store.route(jsonCodec.toJson(Route()))}}
     }
     @Test fun historyTitleSelectionPinDeleteAndImmediateBack() {
         val dao=ReaderDatabase.get(app).reader();val store=SettingsStore(app)

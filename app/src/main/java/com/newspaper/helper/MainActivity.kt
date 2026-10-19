@@ -18,6 +18,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.core.view.doOnPreDraw
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -51,6 +53,7 @@ class MainActivity : AppCompatActivity() {
     private var enterRoute:Route?=null
     private var enterBack=false
     private var renderRevision=0L
+    private var keyboardVisible=false
     private val directoryScroll=mutableMapOf<Route,Pair<Int,Int>>()
     private var lastNoteError=false
     private var speechRevision=0L
@@ -95,6 +98,30 @@ class MainActivity : AppCompatActivity() {
         binding.settings.contentDescription = getString(R.string.a11y_settings)
         binding.editor.contentDescription = getString(R.string.a11y_editor)
         binding.editor.setText(model.draft)
+        binding.editorPanel.isFocusableInTouchMode=true
+        listOf(binding.noteTitle,binding.editor).forEach {field ->
+            var downX=0f;var downY=0f;var dragged=false
+            val slop=android.view.ViewConfiguration.get(this).scaledTouchSlop
+            field.setOnFocusChangeListener {_,focused ->field.isCursorVisible=focused}
+            // 阅读态的滑动不能顺便唤起输入法；确认是轻点后才恢复编辑和系统粘贴能力。
+            field.setOnTouchListener {_,event ->
+                when(event.actionMasked) {
+                    android.view.MotionEvent.ACTION_DOWN->{downX=event.x;downY=event.y;dragged=false}
+                    android.view.MotionEvent.ACTION_MOVE->if(kotlin.math.abs(event.x-downX)>slop || kotlin.math.abs(event.y-downY)>slop)dragged=true
+                    android.view.MotionEvent.ACTION_UP->if(!dragged && !field.hasFocus()) {
+                        field.isFocusableInTouchMode=true;field.requestFocus();field.isCursorVisible=true
+                        (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).showSoftInput(field,InputMethodManager.SHOW_IMPLICIT)
+                    }
+                }
+                false
+            }
+        }
+        ViewCompat.setOnApplyWindowInsetsListener(binding.root) {_,insets ->
+            val visible=insets.isVisible(WindowInsetsCompat.Type.ime())
+            if(keyboardVisible && !visible && current.route.page==Page.CUSTOM)finishNoteEditing()
+            keyboardVisible=visible
+            insets
+        }
         binding.editor.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
@@ -178,6 +205,11 @@ class MainActivity : AppCompatActivity() {
             if(title!=binding.noteTitle.text.toString()||body!=binding.editor.text.toString())return@launch
             binding.noteMetadata.text=java.text.SimpleDateFormat("M月d日 HH:mm",java.util.Locale.SIMPLIFIED_CHINESE).format(java.util.Date(model.draftUpdated))+"  |  "+getString(R.string.ui_note_words,count)
         }
+    }
+    private fun finishNoteEditing() {
+        model.flushDraft()
+        listOf(binding.noteTitle,binding.editor).forEach {it.clearFocus();it.isCursorVisible=false;it.isFocusable=false}
+        binding.editorPanel.requestFocus()
     }
     private fun applyAppearance() {
         val p = palette
@@ -278,6 +310,7 @@ class MainActivity : AppCompatActivity() {
             if(binding.editor.text.toString()!=model.draft)binding.editor.setText(model.draft)
             if(binding.noteTitle.text.toString()!=model.draftTitle)binding.noteTitle.setText(model.draftTitle)
             bindingDraft=false;noteMetadata()
+            if(changedRoute)finishNoteEditing()
         }
         notes.render(current,appearance)
         if(current.noteError && !lastNoteError)android.widget.Toast.makeText(this,R.string.ui_error,android.widget.Toast.LENGTH_LONG).show()
