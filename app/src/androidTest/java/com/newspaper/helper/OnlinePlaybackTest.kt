@@ -7,6 +7,7 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionToken
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -66,6 +67,47 @@ class OnlinePlaybackTest {
                 File(uri.path!!).copyTo(File(evidence,"${article.story.paper.name.lowercase()}.mp3"),overwrite=true)
                 results+=mapOf("paper" to article.story.paper.name,"url" to article.story.url,"blocks" to article.blocks.size,
                     "first_play_ms" to System.currentTimeMillis()-started,"media_position_ms" to main { player.currentPosition })
+            }
+            val last=articles.last()
+            val settings=SettingsStore(app)
+            runBlocking { settings.route(jsonCodec.toJson(Route(Page.READER,last.story.paper,date=last.story.date,story=last.story)));settings.appearance(0,2,2) }
+            ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+                waitFor("Reader toolbar missing") {
+                    var ready=false
+                    scenario.onActivity { ready=it.findViewById<android.view.View>(R.id.speech).isShown && it.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.list).adapter!!.itemCount>3 }
+                    ready
+                }
+                scenario.onActivity { it.findViewById<android.view.View>(R.id.speech).performClick() }
+                waitFor("Live speech panel did not receive duration") {
+                    var ready=false
+                    scenario.onActivity { ready=it.findViewById<android.view.View>(R.id.sheet).isShown && it.window.decorView.findViewWithTag<com.google.android.material.slider.Slider>("speechProgress")?.isEnabled==true }
+                    ready
+                }
+                for(theme in 0..2) {
+                    runBlocking { settings.appearance(theme,2,2) };Thread.sleep(300)
+                    scenario.onActivity {
+                        assertFalse(it.findViewById<android.view.View>(R.id.paste).isShown)
+                        assertTrue(it.findViewById<android.view.View>(R.id.settings).isShown)
+                    }
+                    instrumentation.waitForIdleSync()
+                    File(evidence,"reader-speech-$theme.png").outputStream().use {
+                        instrumentation.uiAutomation.takeScreenshot().compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)
+                    }
+                }
+                scenario.onActivity { it.window.decorView.findViewWithTag<android.widget.TextView>(1.25f).performClick() }
+                waitFor("Toolbar speed control did not reach service") { main { player.playbackParameters.speed==1.25f } }
+                scenario.onActivity { it.window.decorView.findViewWithTag<GlyphView>("speechPlay").performClick() }
+                waitFor("Toolbar pause did not reach service") { main { !player.playWhenReady } }
+                scenario.onActivity { it.window.decorView.findViewWithTag<GlyphView>("speechPlay").performClick() }
+                waitFor("Toolbar resume did not reach service") { main { player.playWhenReady } }
+                main { player.setPlaybackSpeed(1f) }
+                // 后台朗读仍在继续时，首页和中间页不得重新长出播放栏或朗读按钮。
+                scenario.onActivity { androidx.lifecycle.ViewModelProvider(it)[ReaderViewModel::class.java].navigate(Route()) }
+                Thread.sleep(300)
+                scenario.onActivity { assertTrue(it.findViewById<android.view.View>(R.id.paste).isShown);assertFalse(it.findViewById<android.view.View>(R.id.speech).isShown);assertFalse(it.findViewById<android.view.View>(R.id.sheet).isShown) }
+                scenario.onActivity { it.openPaper(Paper.QIUSHI) }
+                Thread.sleep(300)
+                scenario.onActivity { assertFalse(it.findViewById<android.view.View>(R.id.actions).isShown) }
             }
             main { player.pause() }
             waitFor("Pause not acknowledged") { main { !player.isPlaying && !player.playWhenReady } }

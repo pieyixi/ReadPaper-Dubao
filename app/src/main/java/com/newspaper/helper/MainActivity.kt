@@ -3,18 +3,14 @@ package com.newspaper.helper
 import android.content.ComponentName
 import android.content.Intent
 import android.graphics.Color
-import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.text.Editable
 import android.text.TextWatcher
-import android.view.Gravity
 import android.view.View
-import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
-import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.viewModels
@@ -24,19 +20,15 @@ import androidx.core.view.isVisible
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionToken
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.newspaper.helper.databinding.ActivityMainBinding
-import com.google.android.material.slider.Slider
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.time.LocalDate
-import java.time.YearMonth
 
 class MainActivity : AppCompatActivity() {
     private val model: ReaderViewModel by viewModels()
@@ -49,7 +41,7 @@ class MainActivity : AppCompatActivity() {
     private var status = PlaybackStatus()
     private var lastRoute: Route? = null
     private var restoring = false
-    private var playButton: GlyphView? = null
+    private lateinit var chrome: ReadingChrome
     private var pendingSpeech: SpeechRequest? = null
     private var voiceSettingsOpened = false
     val palette: Palette get() = Palette.forTheme(appearance.theme)
@@ -59,6 +51,17 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        chrome = ReadingChrome(this,binding,{ controller },
+            { theme,font,line -> model.changeSettings(theme ?: appearance.theme,font ?: appearance.font,line ?: appearance.line) },
+            ::playOrPause,{
+                val sameTarget = if(current.route.page==Page.CUSTOM) status.article.startsWith("custom:") else status.article==current.article?.story?.url
+                if(!sameTarget || status.article.isEmpty()) playOrPause()
+            },::command,{
+                current.article?.story?.let { story ->
+                    val remaining=model.listForQueue.dropWhile { it.url!=story.url }.ifEmpty { listOf(story) }
+                    sendSpeech(SpeechRequest(stories=remaining,append=true))
+                }
+            })
         rows = NativeRows(this, ::rowClick)
         binding.list.layoutManager = LinearLayoutManager(this)
         binding.list.adapter = rows
@@ -78,10 +81,6 @@ class MainActivity : AppCompatActivity() {
         binding.paste.contentDescription = getString(R.string.a11y_custom)
         binding.paste.setOnClickListener { model.navigate(Route(Page.CUSTOM)) }
         binding.settings.contentDescription = getString(R.string.a11y_settings)
-        binding.settings.setOnClickListener { binding.settingsPanel.isVisible = !binding.settingsPanel.isVisible }
-        binding.gear.glyph = Glyph.GEAR
-        binding.gear.contentDescription = getString(R.string.a11y_settings)
-        binding.gear.setOnClickListener { binding.settingsPanel.isVisible = !binding.settingsPanel.isVisible }
         binding.editor.contentDescription = getString(R.string.a11y_editor)
         binding.editor.setText(model.draft)
         binding.editor.addTextChangedListener(object : TextWatcher {
@@ -115,14 +114,14 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
                     rows.highlight = if (playback.article == current.article?.story?.url) playback.block else ""
-                    playButton?.glyph = if (playback.playing) Glyph.PAUSE else if (playback.failed || playback.voiceMissing) Glyph.RETRY else Glyph.PLAY
-                    binding.playback.isVisible = current.route.page in listOf(Page.READER, Page.CUSTOM) || playback.article.isNotEmpty()
+                    chrome.playback(playback)
                     if (playback.playing && playback.article == current.article?.story?.url) {
                         val position = rows.items.indexOfFirst { it.block?.id == playback.block }
                         val lm = binding.list.layoutManager as LinearLayoutManager
                         if (position >= 0 && position !in lm.findFirstVisibleItemPosition()..lm.findLastVisibleItemPosition() && binding.list.scrollState == androidx.recyclerview.widget.RecyclerView.SCROLL_STATE_IDLE) binding.list.smoothScrollToPosition(position)
                     }
                 } }
+                launch { while(true) { chrome.updateProgress(); kotlinx.coroutines.delay(500) } }
             }
         }
     }
@@ -134,8 +133,8 @@ class MainActivity : AppCompatActivity() {
         }, ContextCompat.getMainExecutor(this))
     }
     private fun back() {
+        if (chrome.close()) return
         (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(binding.editor.windowToken, 0)
-        binding.settingsPanel.isVisible = false
         if (!model.back()) finish()
     }
     private fun applyAppearance() {
@@ -146,57 +145,10 @@ class MainActivity : AppCompatActivity() {
         binding.editor.setTextColor(p.text)
         binding.editor.textSize = floatArrayOf(15f,17f,19f,21f)[appearance.font]
         binding.back.ink = p.muted; binding.paste.ink = p.muted
-        binding.gear.ink = p.muted
         window.statusBarColor = p.bg; window.navigationBarColor = p.bg
         if (Build.VERSION.SDK_INT >= 23) window.decorView.systemUiVisibility = if (appearance.theme == 1) 0 else View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
-        buildSettings()
-        buildPlayback()
+        chrome.appearance(appearance)
         rows.appearance = appearance
-    }
-    private fun buildSettings() {
-        binding.settingsPanel.removeAllViews()
-        binding.settingsPanel.setBackgroundColor(palette.card)
-        fun optionRow(label: Int, choices: List<Int>, selected: Int, action: (Int) -> Unit) {
-            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-            row.addView(text(getString(label), 13f, palette.muted), LinearLayout.LayoutParams(dp(40), dp(44)))
-            choices.forEachIndexed { index, resource ->
-                row.addView(text(getString(resource), 13f, if (index == selected) palette.bg else palette.text).apply {
-                    gravity = Gravity.CENTER; isClickable = true; isFocusable = true; isSelected = selected == index
-                    background = rounded(if (index == selected) palette.text else palette.card, 6)
-                    setOnClickListener { action(index) }
-                }, LinearLayout.LayoutParams(0, dp(44), 1f))
-            }
-            binding.settingsPanel.addView(row)
-        }
-        optionRow(R.string.ui_font, listOf(R.string.ui_small,R.string.ui_medium,R.string.ui_large,R.string.ui_xlarge), appearance.font) { model.changeSettings(font = it) }
-        optionRow(R.string.ui_line, listOf(R.string.ui_tight,R.string.ui_standard,R.string.ui_loose,R.string.ui_wider), appearance.line) { model.changeSettings(line = it) }
-        optionRow(R.string.ui_mode, listOf(R.string.ui_day,R.string.ui_night,R.string.ui_eye), appearance.theme) { model.changeSettings(theme = it) }
-    }
-    private fun buildPlayback() {
-        binding.playback.removeAllViews(); binding.playback.setBackgroundColor(palette.card)
-        fun button(glyph: Glyph, description: Int, action: () -> Unit): GlyphView = GlyphView(this).apply {
-            this.glyph = glyph; ink = palette.text; contentDescription = getString(description)
-            setOnClickListener { action() }
-            binding.playback.addView(this, LinearLayout.LayoutParams(0, dp(48), 1f))
-        }
-        button(Glyph.PREVIOUS, R.string.a11y_previous) { command("step", Bundle().apply { putInt("delta", -1) }) }
-        playButton = button(if (status.playing) Glyph.PAUSE else Glyph.PLAY, R.string.a11y_play) { playOrPause() }
-        button(Glyph.STOP, R.string.a11y_stop) { command("stop") }
-        button(Glyph.NEXT, R.string.a11y_next) { command("step", Bundle().apply { putInt("delta", 1) }) }
-        button(Glyph.QUEUE, R.string.a11y_queue) {
-            val story = current.article?.story
-            if (story != null) {
-                val remaining = model.listForQueue.dropWhile { it.url != story.url }.ifEmpty { listOf(story) }
-                sendSpeech(SpeechRequest(stories = remaining, append = true))
-            }
-        }
-        val speed = Slider(this).apply {
-            valueFrom = .5f; valueTo = 2f; stepSize = .25f; value = controller?.playbackParameters?.speed?.coerceIn(.5f,2f) ?: 1f
-            contentDescription = getString(R.string.a11y_speed)
-            labelBehavior = com.google.android.material.slider.LabelFormatter.LABEL_GONE
-            addOnChangeListener { _, value, fromUser -> if (fromUser) controller?.setPlaybackSpeed(value) }
-        }
-        binding.playback.addView(speed, LinearLayout.LayoutParams(dp(64), dp(48)))
     }
     private fun playOrPause() {
         if (status.voiceMissing) {
@@ -238,9 +190,7 @@ class MainActivity : AppCompatActivity() {
     private fun render() {
         val route = current.route
         binding.back.isVisible = route.page != Page.HOME
-        binding.settings.isVisible = route.page != Page.HOME
-        binding.gear.isVisible = route.page == Page.HOME
-        binding.paste.isVisible = route.page != Page.CUSTOM
+        chrome.route(route)
         binding.title.text = when (route.page) {
             Page.HOME, Page.CUSTOM -> ""
             Page.CALENDAR, Page.YEARS -> route.paper.label
@@ -250,7 +200,6 @@ class MainActivity : AppCompatActivity() {
         }
         binding.list.isVisible = route.page != Page.CUSTOM
         binding.editor.isVisible = route.page == Page.CUSTOM
-        binding.playback.isVisible = route.page in listOf(Page.READER, Page.CUSTOM) || status.article.isNotEmpty()
         val content = mutableListOf<NativeRow>()
         when {
             current.loading -> content += NativeRow("loading", RowKind.MESSAGE, getString(R.string.ui_loading))

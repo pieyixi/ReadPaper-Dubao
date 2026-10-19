@@ -7,7 +7,7 @@ import android.graphics.Path
 import android.util.AttributeSet
 import android.view.View
 
-enum class Glyph { BACK, PASTE, PLAY, PAUSE, STOP, PREVIOUS, NEXT, QUEUE, RETRY, GEAR }
+enum class Glyph { BACK, PASTE, PLAY, PAUSE, STOP, PREVIOUS, NEXT, QUEUE, RETRY, GEAR, HEADPHONES }
 class GlyphView @JvmOverloads constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs) {
     var glyph = Glyph.BACK; set(value) { field = value; invalidate() }
     var ink = 0xff666666.toInt(); set(value) { field = value; invalidate() }
@@ -20,7 +20,13 @@ class GlyphView @JvmOverloads constructor(context: Context, attrs: AttributeSet?
         paint.color = ink; paint.strokeWidth = 1.8f; paint.style = Paint.Style.STROKE; paint.strokeCap = Paint.Cap.ROUND; paint.strokeJoin = Paint.Join.ROUND
         fun line(vararg points: Float) { val p = Path(); p.moveTo(points[0], points[1]); for (i in 2 until points.size step 2) p.lineTo(points[i], points[i + 1]); canvas.drawPath(p, paint) }
         when (glyph) {
-            Glyph.BACK -> { line(18f,12f,5f,12f); line(11f,5f,4f,12f,11f,19f) }
+            Glyph.BACK -> line(15f,5f,8f,12f,15f,19f)
+            Glyph.HEADPHONES -> {
+                canvas.drawArc(4f,4f,20f,20f,180f,180f,false,paint)
+                line(4f,12f,4f,14f); line(20f,12f,20f,14f)
+                canvas.drawRoundRect(3f,14f,7f,20f,1.5f,1.5f,paint)
+                canvas.drawRoundRect(17f,14f,21f,20f,1.5f,1.5f,paint)
+            }
             Glyph.PASTE -> { canvas.drawRoundRect(6f,5f,20f,22f,2f,2f,paint); canvas.drawRoundRect(9f,2f,17f,7f,1f,1f,paint); line(9f,12f,17f,12f); line(9f,16f,17f,16f) }
             Glyph.PLAY -> line(7f,4f,20f,12f,7f,20f,7f,4f)
             Glyph.PAUSE -> { line(8f,4f,8f,20f); line(16f,4f,16f,20f) }

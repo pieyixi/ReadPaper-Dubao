@@ -1,7 +1,7 @@
 name: Android build and speech checks
 on:
   push:
-    branches: [codex/free-online-speech]
+    branches: [codex/free-online-speech, codex/topbar-controls]
   pull_request:
   workflow_dispatch:
 permissions:
@@ -42,13 +42,11 @@ jobs:
         if: always()
         run: echo 'Live speech check outcome is ${{ steps.online.outcome }}. This is separate from build and offline tests.' >> "$GITHUB_STEP_SUMMARY"
       - name: Enable cloud emulator acceleration
-        if: steps.online.outcome == 'success'
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      - name: Android online playback checks
-        if: steps.online.outcome == 'success'
+      - name: Android topbar and online playback checks
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 28
@@ -57,13 +55,22 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           script: |
-            bash ./gradlew --no-daemon --console=plain connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.newspaper.helper.OnlinePlaybackTest
-            adb pull /sdcard/Download/dubao-online-evidence app/build/speech-evidence/android
+            adb shell wm size 960x1920
+            adb shell wm density 480
+            bash ./gradlew --no-daemon --console=plain connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.newspaper.helper.NativeUiTest,com.newspaper.helper.TopBarUiTest
+            mkdir -p app/build/topbar-evidence/reports-320
+            cp -r app/build/reports/androidTests/. app/build/topbar-evidence/reports-320/
+            adb shell wm size 1170x2340
+            bash ./gradlew --no-daemon --console=plain connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.newspaper.helper.NativeUiTest,com.newspaper.helper.TopBarUiTest
+            mkdir -p app/build/topbar-evidence/reports-390
+            cp -r app/build/reports/androidTests/. app/build/topbar-evidence/reports-390/
+            adb pull /sdcard/Download/dubao-topbar-evidence app/build/topbar-evidence/screenshots
+            if [ '${{ steps.online.outcome }}' = 'success' ]; then bash ./gradlew --no-daemon --console=plain connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.newspaper.helper.OnlinePlaybackTest && adb pull /sdcard/Download/dubao-online-evidence app/build/speech-evidence/android; fi
       - name: Upload APK and validation evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: dubao-2.0.1-debug-${{ github.sha }}
+          name: dubao-2.0.2-debug-${{ github.sha }}
           retention-days: 3
           path: |
             app/build/outputs/apk/debug/*.apk
@@ -71,4 +78,6 @@ jobs:
             app/build/reports/lint-results-debug.*
             app/build/reports/androidTests/
             app/build/speech-evidence/
+            app/build/topbar-evidence/
+            app/build/outputs/androidTest-results/
             app/build/test-results/testDebugUnitTest/

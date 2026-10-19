@@ -57,9 +57,9 @@ class NativeUiTest {
                 scenario.onActivity { check(it.window.decorView) }
                 shot("home-${app.resources.configuration.screenWidthDp}-$mode")
             }
-            onView(withId(R.id.gear)).perform(click())
+            onView(withId(R.id.settings)).perform(click())
             onView(withText(app.getString(R.string.ui_eye))).check(matches(isDisplayed()))
-            onView(withId(R.id.gear)).perform(click())
+            onView(withId(R.id.settings)).perform(click())
             onView(withText(Paper.PEOPLE.label)).perform(click())
             for(mode in 0..2) {
                 runBlocking { settings.appearance(mode,2,2) };Thread.sleep(300)

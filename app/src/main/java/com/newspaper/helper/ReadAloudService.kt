@@ -34,7 +34,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import java.io.File
 
-data class PlaybackStatus(val article: String = "", val block: String = "", val playing: Boolean = false, val preparing: Boolean = false, val voiceMissing: Boolean = false, val failed: Boolean = false)
+data class PlaybackStatus(val article: String = "", val block: String = "", val playing: Boolean = false, val preparing: Boolean = false, val voiceMissing: Boolean = false, val failed: Boolean = false,
+    val segmentIndex: Int = 0, val segmentCount: Int = 0)
 object PlaybackSignals {
     internal val mutable = MutableStateFlow(PlaybackStatus())
     val state = mutable.asStateFlow()
@@ -345,7 +346,8 @@ class ReadAloudService : MediaSessionService() {
     private fun publish() {
         val segment = segments.getOrNull(baseSegment + maxOf(0, player.currentMediaItemIndex))
         PlaybackSignals.mutable.value = PlaybackStatus(article?.story?.url.orEmpty(), segment?.blockId.orEmpty(), player.isPlaying,
-            player.mediaItemCount == 0 && work?.isActive == true && !speechFailed && !voiceMissing,voiceMissing,speechFailed)
+            player.mediaItemCount == 0 && work?.isActive == true && !speechFailed && !voiceMissing,voiceMissing,speechFailed,
+            baseSegment + maxOf(0,player.currentMediaItemIndex),segments.size)
     }
     private fun reportFailure(error:Exception,url:String=article?.story?.url.orEmpty()) {
         voiceMissing=error is VoiceUnavailable;speechFailed=!voiceMissing
