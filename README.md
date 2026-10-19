@@ -1,6 +1,6 @@
 # 读报
 
-[下载最新正式 Release](https://github.com/pieyixi/ReadPaper-Dubao/releases/latest)。本次修复版本 **2.0.2**（versionCode 10），云端完整检查通过后自动发布，实际结果以 Release 附带的验证报告为准；本次导航、播放入口、字号和求是清洗修复见 [RELEASE-2.0.2.md](RELEASE-2.0.2.md)，此前音频缓存改进见 [SPEECH-CACHE-UPDATE.md](SPEECH-CACHE-UPDATE.md)，开发与发布统一在 **main**：包含此前调试阶段验证的便签历史、标题/日期/字数、长按多选、置顶/删除、固定悬浮新建按钮、原文自然段循环与五挡倍速。`mock.html` 是界面预览基准，用户确认后同步 Kotlin 原生 View。报纸及自定义便签均优先使用免费云扬在线合成，朗读内容会发送至在线服务；便签保存在本机，私人音频独立缓存。调试阶段的验证记录见 [NOTES-UPDATE.md](NOTES-UPDATE.md)，原生基线正式发布记录见 [RELEASE-2.0.0.md](RELEASE-2.0.0.md)。
+当前正式版本 **2.0.2**（versionCode 10），[下载原签名 Release APK](https://github.com/pieyixi/ReadPaper-Dubao/releases/download/v2.0.2/dubao-2.0.2-release.apk)。31 项 Android 回归及原签名正式包冷启动通过；本次导航、播放入口、字号和求是清洗修复见 [RELEASE-2.0.2.md](RELEASE-2.0.2.md)，此前音频缓存改进见 [SPEECH-CACHE-UPDATE.md](SPEECH-CACHE-UPDATE.md)，开发与发布统一在 **main**：包含此前调试阶段验证的便签历史、标题/日期/字数、长按多选、置顶/删除、固定悬浮新建按钮、原文自然段循环与五挡倍速。`mock.html` 是界面预览基准，用户确认后同步 Kotlin 原生 View。报纸及自定义便签均优先使用免费云扬在线合成，朗读内容会发送至在线服务；便签保存在本机，私人音频独立缓存。调试阶段的验证记录见 [NOTES-UPDATE.md](NOTES-UPDATE.md)，原生基线正式发布记录见 [RELEASE-2.0.0.md](RELEASE-2.0.0.md)。
 
 
 Kotlin 原生 Android 读报器，保留学习时报、组织人事报、人民日报、南方日报、求是五个来源。报纸和自定义便签默认使用免费的云扬在线自然语音。包名仍为 `com.newspaper.helper`。朗读倍速为 0.8、1、1.1、1.2、1.3 五挡，更新记录见 [SPEED-UPDATE.md](SPEED-UPDATE.md)。
