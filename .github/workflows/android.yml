@@ -5,7 +5,7 @@ on:
   pull_request:
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 concurrency:
   group: android-${{ github.ref }}
   cancel-in-progress: true
@@ -122,3 +122,25 @@ jobs:
             app/build/outputs/apk/release/app-release.apk
             app/build/release-evidence/verification.json
           if-no-files-found: error
+      - name: Publish verified 2.0.2 Release
+        if: success() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && steps.online.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 scripts/prepare-release.py
+          if gh release view v2.0.2 >/dev/null 2>&1; then
+            echo 'Release already exists; keeping the published assets.'
+            exit 0
+          fi
+          current_main="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)"
+          if [ "$current_main" != "$GITHUB_SHA" ]; then
+            echo 'A newer main commit exists; leaving publication to its verified build.'
+            exit 0
+          fi
+          gh release create v2.0.2 \
+            --target "$GITHUB_SHA" --title '读报 2.0.2' --latest \
+            --notes-file app/build/release-evidence/publish/release-validation.md \
+            app/build/release-evidence/publish/dubao-2.0.2-release.apk \
+            app/build/release-evidence/publish/dubao-2.0.2-release.apk.sha256 \
+            app/build/release-evidence/publish/release-validation.json \
+            app/build/release-evidence/publish/release-validation.md
