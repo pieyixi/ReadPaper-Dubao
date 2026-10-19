@@ -45,6 +45,7 @@ class NotesUiTest {
         try {ActivityScenario.launch(MainActivity::class.java).use {scenario ->
             fun model(block:(ReaderViewModel)->Unit){scenario.onActivity {block(ViewModelProvider(it)[ReaderViewModel::class.java])}}
             fun visible(id:Int):Boolean {var result=false;scenario.onActivity {result=it.findViewById<View>(id).isShown};return result}
+            fun settledBar():Boolean {var ready=false;scenario.onActivity {val bar=it.findViewById<View>(R.id.selectionBar);ready=bar.isShown&&bar.alpha>=.99f&&kotlin.math.abs(bar.translationY)<1f};return ready}
             onView(withId(R.id.paste)).perform(click())
             waitFor("note grid missing"){visible(R.id.noteList)&&visible(R.id.newNote)}
             waitFor("note previews did not load"){var loaded=false;model {loaded=it.screen.value.notes.any {n->n.id==ids[0]}};loaded}
@@ -61,6 +62,7 @@ class NotesUiTest {
             onView(withId(R.id.selectAll)).perform(click())
             model {assertTrue(it.screen.value.selected.isEmpty());it.selection(ids[0])}
             shot("selected")
+            waitFor("pin bar did not finish entering",::settledBar)
             onView(withId(R.id.pinNotes)).perform(click())
             waitFor("pin not persisted"){runBlocking {dao.note(ids[0])?.pinned==true}}
             waitFor("selection did not close"){!visible(R.id.selectionBar)}
@@ -87,7 +89,7 @@ class NotesUiTest {
             }
             for(theme in 0..2){runBlocking {store.appearance(theme,2,2)};Thread.sleep(250);shot("theme-$theme")}
             model {it.selection(ids[0])}
-            waitFor("delete selection missing"){visible(R.id.selectionBar)}
+            waitFor("delete bar did not finish entering",::settledBar)
             onView(withId(R.id.deleteNotes)).perform(click())
             onView(withId(android.R.id.button2)).perform(click())
             assertNotNull(runBlocking {dao.note(ids[0])})
