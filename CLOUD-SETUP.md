@@ -3,9 +3,9 @@
 > 2026-10-19 当前用户确认：先在 `mock.html` 审阅，再同步原生。2.0.4 接入便签历史、独立标题/日期/字数、长按多选与批量置顶/删除、悬浮加号及确认的动效；报纸和粘贴文本均优先使用免费云扬在线语音。点击朗读会将所选文本发送给在线合成服务，正文便签另在本机保存；私人音频不进入公共缓存。下文关于“不上传用户文本/默认离线”的旧描述属于迁移历史，本次已由用户明确的新要求取代。构建仍只在云端运行。
 
 
-当前界面改进分支：`codex/topbar-controls`；2.0.3 倍速调整见 `SPEED-UPDATE.md`，2.0.2 顶栏与朗读弹层详见 `TOPBAR-UPDATE.md`。免费在线语音基线分支为 `codex/free-online-speech`。
+当前界面改进分支：`codex/topbar-controls`；2.0.4 便签、循环及原生动效见 `NOTES-UPDATE.md`，2.0.3 倍速调整见 `SPEED-UPDATE.md`，2.0.2 顶栏与朗读弹层详见 `TOPBAR-UPDATE.md`。免费在线语音基线分支为 `codex/free-online-speech`。
 
-本分支基于 2.0.0 原生版本 `96f9f45`，接入免费云扬在线语音并保留粘贴文本的默认离线朗读。原生迁移历史分支为 `codex/native-reader-tts`。本轮实现与实际验证状态见 `SPEECH-INTEGRATION.md`，不要从旧版四报或 WebView 实现覆盖当前源码。
+本分支基于 2.0.0 原生版本 `96f9f45`，接入免费云扬在线语音；2.0.4 起，粘贴便签也默认使用云扬，系统语音只作为首段失败后的后备。原生迁移历史分支为 `codex/native-reader-tts`。当前实现与验证状态见 `NOTES-UPDATE.md`，早期语音接入记录见 `SPEECH-INTEGRATION.md`，不要从旧版四报或 WebView 实现覆盖当前源码。
 
 ## 用户只需要完成的操作
 
@@ -55,4 +55,4 @@ bash scripts/cloud-build.sh release
 - 当前界面代码同步到 `codex/topbar-controls`；本轮不合并默认分支。在线语音基线保留在 `codex/free-online-speech`。
 - 除 Codex Cloud 安装/构建入口外，仓库已提供 `Android build and speech checks` GitHub Actions，可在标准 Ubuntu 云端运行器构建和检查。使用 Actions 不依赖本地 CLI 发现 Codex Cloud 环境。
 - 本地未执行 SDK 安装、Gradle 构建或模拟器运行；只取回 APK 和检查证据。
-- 原生迁移历史证据见 `NATIVE-ACCEPTANCE.md`，本轮在线语音证据见 `SPEECH-INTEGRATION.md`。构建、JVM、模拟器、真机和听感分别记录。
+- 原生迁移历史证据见 `NATIVE-ACCEPTANCE.md`，当前便签与在线语音证据见 `NOTES-UPDATE.md`，早期语音证据见 `SPEECH-INTEGRATION.md`。构建、JVM、模拟器、真机和听感分别记录。
