@@ -84,7 +84,11 @@ class ArticleRepository(context: Context, val sources: NewsSources = NewsSources
     val dao = ReaderDatabase.get(context).reader()
     suspend fun article(story: Story, refresh: Boolean = false): Article = withContext(Dispatchers.IO) {
         val record = dao.article(story.url)
-        if (!refresh && record != null && System.currentTimeMillis() - record.fetched < 30 * 60 * 1000) return@withContext jsonCodec.fromJson(record.payload, Article::class.java)
+        if(!refresh && record!=null && System.currentTimeMillis()-record.fetched<30*60*1000) {
+            val cached=jsonCodec.fromJson(record.payload,Article::class.java)
+            // 升级后仅让旧求是解析缓存重新获取，不能继续展示旧页尾，也不清除便签、位置或音频缓存。
+            if(story.paper!=Paper.QIUSHI || cached.parserVersion==ContentParser.VERSION)return@withContext cached
+        }
         val article = sources.article(story)
         dao.saveArticle(ArticleRecord(story.url, jsonCodec.toJson(article), System.currentTimeMillis()))
         if (dao.position(story.url) == null) dao.savePosition(ReadingPosition(story.url))

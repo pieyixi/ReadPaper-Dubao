@@ -82,7 +82,7 @@ jobs:
             adb shell settings put global animator_duration_scale 1
             adb shell settings put global transition_animation_scale 1
             adb shell settings put global window_animation_scale 1
-            bash ./gradlew --no-daemon --console=plain connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.newspaper.helper.NotesUiTest,com.newspaper.helper.NavigationTransitionTest -Pandroid.testInstrumentationRunnerArguments.expectedWidth=390
+            bash ./gradlew --no-daemon --console=plain connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.newspaper.helper.NotesUiTest,com.newspaper.helper.NavigationTransitionTest,com.newspaper.helper.NavigationColorFlashTest -Pandroid.testInstrumentationRunnerArguments.expectedWidth=390
             mkdir -p app/build/topbar-evidence/reports-motion
             cp -r app/build/reports/androidTests/. app/build/topbar-evidence/reports-motion/
             adb shell settings put global animator_duration_scale 0
@@ -98,7 +98,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: dubao-2.0.1-validation-${{ github.sha }}
+          name: dubao-2.0.2-validation-${{ github.sha }}
           retention-days: 3
           path: |
             app/build/outputs/apk/debug/*.apk
@@ -116,7 +116,7 @@ jobs:
         if: success() && github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
         with:
-          name: dubao-2.0.1-release-${{ github.sha }}
+          name: dubao-2.0.2-release-${{ github.sha }}
           retention-days: 7
           path: |
             app/build/outputs/apk/release/app-release.apk

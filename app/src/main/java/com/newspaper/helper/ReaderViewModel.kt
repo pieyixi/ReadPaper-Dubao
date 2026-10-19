@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
@@ -30,6 +31,8 @@ class ReaderViewModel(application: Application, private val saved: SavedStateHan
     val screen = mutable.asStateFlow()
     private val appearance = MutableStateFlow(ReaderSettings())
     val settings = appearance.asStateFlow()
+    // 通知冷启动须等持久路由恢复发起后再导航，避免迟到的恢复覆盖正在播放的目标。
+    val initialized=CompletableDeferred<Unit>()
     private var request: Job? = null
     private var navigationRevision=0L
     // 完整目录最多八页、五分钟，返回不必重走加载；到期及重试仍能获取官网新内容。
@@ -60,6 +63,7 @@ class ReaderViewModel(application: Application, private val saved: SavedStateHan
             val route = runCatching { jsonCodec.fromJson(encoded, Route::class.java) }.getOrNull() ?: Route()
             saved.get<ArrayList<String>>("stack")?.forEach { runCatching { stack += jsonCodec.fromJson(it, Route::class.java) } }
             navigate(route, false)
+            initialized.complete(Unit)
             store.flow.collect { appearance.value = it }
         }
     }

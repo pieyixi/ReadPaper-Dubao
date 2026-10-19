@@ -54,16 +54,31 @@ class OnlinePlaybackTest {
                 it.findViewById<android.widget.EditText>(R.id.editor).setText("这是一段用于检查粘贴朗读的文本。\n同一份笔记可以继续编辑，也可以暂停和恢复朗读。")
                 it.findViewById<android.view.View>(R.id.speech).performClick()
             }
+            Thread.sleep(400)
+            assertEquals("Opening the headphone panel started synthesis",0,main {player.mediaItemCount})
+            assertFalse("Opening the headphone panel started playback",main {player.playWhenReady||player.isPlaying})
+            assertFalse("Opening the headphone panel prepared audio",PlaybackSignals.state.value.preparing)
+            scenario.onActivity {it.window.decorView.findViewWithTag<GlyphView>("speechPlay").performClick()}
             waitFor("Pasted text did not play") {PlaybackSignals.state.value.article.startsWith("custom:")&&main {player.isPlaying&&player.currentPosition>100}}
             main {player.pause()}
             assertEquals(noteId,PlaybackSignals.state.value.noteId)
             val path=main {checkNotNull(player.currentMediaItem?.localConfiguration?.uri?.path)}
             assertTrue("Pasted text fell back to system speech",path.endsWith(".mp3"))
             assertTrue("Pasted audio entered shared cache",File(path).name.startsWith("private-"))
+            scenario.onActivity {androidx.lifecycle.ViewModelProvider(it)[ReaderViewModel::class.java].navigate(Route())}
+            waitFor("Paused note did not return home") {var ok=false;scenario.onActivity {ok=it.findViewById<android.view.View>(R.id.paste).isShown};ok}
+            scenario.onActivity {assertFalse("Paused audio kept a playing badge",it.findViewById<android.view.View>(R.id.nowPlaying).isShown)}
+            checkNotNull(main {player.sessionActivity}).send()
+            waitFor("Notification did not open paused note") {var ok=false;scenario.onActivity {val s=androidx.lifecycle.ViewModelProvider(it)[ReaderViewModel::class.java].screen.value;ok=s.route.page==Page.CUSTOM&&s.route.noteId==noteId&&!s.loading};ok}
+            assertFalse("Opening paused note from notification started audio",main {player.playWhenReady})
             File(path).copyTo(File(evidence,"pasted-yunyang.mp3"),overwrite=true)
             File(evidence,"pasted-speech.png").outputStream().use {instrumentation.uiAutomation.takeScreenshot().compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)}
             main {player.play()}
             waitFor("Pasted audio did not resume") {main {player.isPlaying}}
+            scenario.onActivity {androidx.lifecycle.ViewModelProvider(it)[ReaderViewModel::class.java].navigate(Route())}
+            waitFor("Playing note badge did not appear") {var ok=false;scenario.onActivity {ok=it.findViewById<GlyphView>(R.id.nowPlaying).let {v->v.isShown&&v.playing}};ok}
+            scenario.onActivity {it.findViewById<android.view.View>(R.id.nowPlaying).performClick()}
+            waitFor("Home badge did not open the playing note") {var ok=false;scenario.onActivity {val s=androidx.lifecycle.ViewModelProvider(it)[ReaderViewModel::class.java].screen.value;ok=s.route.page==Page.CUSTOM&&s.route.noteId==noteId&&!s.loading};ok}
             val oldArticle=PlaybackSignals.state.value.article
             scenario.onActivity {it.findViewById<android.widget.EditText>(R.id.editor).append("\n编辑后旧声音必须停止。")}
             waitFor("Edited paragraph was not prepared") {PlaybackSignals.state.value.article!=oldArticle && PlaybackSignals.state.value.block=="custom-3" && main {player.mediaItemCount>0&&player.duration>0}}
@@ -109,6 +124,7 @@ class OnlinePlaybackTest {
             assertEquals("A delayed edited request resurrected stopped audio",0,main {player.mediaItemCount})
             assertTrue(PlaybackSignals.state.value.article.isEmpty())
             File(evidence,"pasted-playback.json").writeText(jsonCodec.toJson(mapOf("online_mp3" to true,"private_cache" to true,"pause_resume" to true,
+                "manual_start_only" to true,"notification_opens_paused_note" to true,"home_badge_opens_playing_note" to true,
                 "editing_cancels_old_audio" to true,"local_note_saved" to true,"edited_paragraph_prefetched" to true,
                 "loop_uses_latest_original_text" to true,"paused_edit_stays_paused" to true,"stop_rejects_delayed_edit" to true)))
             shell("mkdir -p /sdcard/Download/dubao-online-evidence")
@@ -287,6 +303,22 @@ class OnlinePlaybackTest {
                 File(uri.path!!).copyTo(File(evidence,"${article.story.paper.name.lowercase()}.mp3"),overwrite=true)
                 results+=mapOf("paper" to article.story.paper.name,"url" to article.story.url,"blocks" to article.blocks.size,
                     "first_play_ms" to System.currentTimeMillis()-started,"media_position_ms" to main { player.currentPosition })
+                // 冷启动使用通知相同的 Intent；随后真实发送会话的 PendingIntent 验证热启动。
+                ActivityScenario.launch<MainActivity>(Intent(app,MainActivity::class.java).setAction(ReadAloudService.OPEN_PLAYING)).use {entry->
+                    fun atReader():Boolean {var ok=false;entry.onActivity {val s=androidx.lifecycle.ViewModelProvider(it)[ReaderViewModel::class.java].screen.value;ok=s.route.page==Page.READER&&s.article?.story?.url==article.story.url};return ok}
+                    waitFor("Notification cold start opened wrong article: ${article.story.paper}") {atReader()}
+                    entry.onActivity {androidx.lifecycle.ViewModelProvider(it)[ReaderViewModel::class.java].navigate(Route())}
+                    waitFor("Home playing icon missing: ${article.story.paper}") {var ok=false;entry.onActivity {val badge=it.findViewById<GlyphView>(R.id.nowPlaying);ok=badge.isShown&&badge.playing};ok}
+                    entry.onActivity {it.findViewById<android.view.View>(R.id.nowPlaying).performClick()}
+                    waitFor("Home playing icon opened wrong article") {atReader()}
+                    entry.onActivity {it.onBackPressedDispatcher.onBackPressed()}
+                    waitFor("Playing article added duplicate back-stack entries") {var ok=false;entry.onActivity {ok=androidx.lifecycle.ViewModelProvider(it)[ReaderViewModel::class.java].screen.value.route.page==Page.HOME};ok}
+                    checkNotNull(main {player.sessionActivity}).send()
+                    waitFor("Notification warm start opened wrong article") {atReader()}
+                    assertEquals(article.story.url,PlaybackSignals.state.value.article)
+                    assertTrue("Opening current article paused playback",main {player.playWhenReady})
+                }
+                results[results.lastIndex]=results.last()+mapOf("notification_cold_start" to true,"notification_warm_start" to true,"home_playing_badge" to true,"back_returns_home" to true)
             }
             val last=articles.last()
             val settings=SettingsStore(app)

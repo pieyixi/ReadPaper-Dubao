@@ -35,7 +35,8 @@ import kotlinx.coroutines.withTimeout
 import java.io.File
 
 data class PlaybackStatus(val article: String = "", val block: String = "", val playing: Boolean = false, val preparing: Boolean = false, val voiceMissing: Boolean = false, val failed: Boolean = false,
-    val segmentIndex: Int = 0, val segmentCount: Int = 0, val mode:PlaybackMode = PlaybackMode.FULL_ONCE,val noteId:String?=null)
+    val segmentIndex: Int = 0, val segmentCount: Int = 0, val mode:PlaybackMode = PlaybackMode.FULL_ONCE,val noteId:String?=null,
+    val story:Story?=null,val playWhenReady:Boolean=false)
 object PlaybackSignals {
     internal val mutable = MutableStateFlow(PlaybackStatus())
     val state = mutable.asStateFlow()
@@ -46,6 +47,7 @@ data class QueueSnapshot(val stories: List<Story>, val index: Int)
 
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 class ReadAloudService : MediaSessionService() {
+    companion object {const val OPEN_PLAYING="com.newspaper.helper.OPEN_PLAYING"}
     private lateinit var player: ExoPlayer
     private var session: MediaSession? = null
     private lateinit var repository: ArticleRepository
@@ -120,8 +122,7 @@ class ReadAloudService : MediaSessionService() {
             override fun pause() { desiredPlay=false;super.pause() }
             override fun setPlayWhenReady(playWhenReady:Boolean) { desiredPlay=playWhenReady;super.setPlayWhenReady(playWhenReady) }
         }
-        session = MediaSession.Builder(this, sessionPlayer).setSessionActivity(PendingIntent.getActivity(this, 0,
-            Intent(this, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))
+        session = MediaSession.Builder(this, sessionPlayer).setSessionActivity(playbackActivityIntent())
             .setCallback(object : MediaSession.Callback {
                 override fun onConnect(session: MediaSession, controller: MediaSession.ControllerInfo): MediaSession.ConnectionResult =
                     MediaSession.ConnectionResult.AcceptedResultBuilder(session).setAvailableSessionCommands(
@@ -205,11 +206,14 @@ class ReadAloudService : MediaSessionService() {
         if (Build.VERSION.SDK_INT>=26) manager.createNotificationChannel(NotificationChannel(channel,getString(R.string.app_name),NotificationManager.IMPORTANCE_LOW))
         val notification=NotificationCompat.Builder(this,channel).setSmallIcon(R.drawable.ic_launcher)
             .setContentTitle(article?.story?.title?.ifBlank { getString(R.string.app_name) } ?: getString(R.string.app_name))
-            .setContentIntent(PendingIntent.getActivity(this,0,Intent(this,MainActivity::class.java),PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
+            .setContentIntent(playbackActivityIntent())
             .setCategory(NotificationCompat.CATEGORY_TRANSPORT).setOngoing(true).setSilent(true).build()
         if(Build.VERSION.SDK_INT>=29) startForeground(1001,notification,ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
         else startForeground(1001,notification)
     }
+    private fun playbackActivityIntent():PendingIntent = PendingIntent.getActivity(this,0,
+        Intent(this,MainActivity::class.java).setAction(OPEN_PLAYING).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP),
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
 
     private fun restoreQueue(play: Boolean) {
         val token=generation
@@ -222,7 +226,7 @@ class ReadAloudService : MediaSessionService() {
             }
             queue.clear();queue+=snapshot.stories;queueIndex=snapshot.index.coerceIn(0,queue.lastIndex)
             if(play) { desiredPlay=true;custom=false;loadStory(queue[queueIndex],true) }
-            else if(PlaybackSignals.state.value.article.isEmpty()) PlaybackSignals.mutable.value=PlaybackStatus(article=queue[queueIndex].url,mode=mode)
+            else if(PlaybackSignals.state.value.article.isEmpty()) PlaybackSignals.mutable.value=PlaybackStatus(article=queue[queueIndex].url,mode=mode,story=queue[queueIndex])
         }
     }
 
@@ -241,7 +245,7 @@ class ReadAloudService : MediaSessionService() {
         customNoteId=if(custom)request.noteId else null
         if (request.custom != null) {
             article=null
-            PlaybackSignals.mutable.value=PlaybackStatus(article="custom:preparing",preparing=true,mode=mode,noteId=customNoteId)
+            PlaybackSignals.mutable.value=PlaybackStatus(article="custom:preparing",preparing=true,mode=mode,noteId=customNoteId,playWhenReady=desiredPlay)
             work = scope.launch {
                 try {
                     val input = File(File(cacheDir, "speech-input"), request.custom)
@@ -276,7 +280,7 @@ class ReadAloudService : MediaSessionService() {
         resetPlayer()
         contentReady=false
         segments=emptyList();durations=LongArray(0)
-        PlaybackSignals.mutable.value = PlaybackStatus(article = story.url, preparing = true,mode=mode)
+        PlaybackSignals.mutable.value = PlaybackStatus(article = story.url, preparing = true,mode=mode,story=story,playWhenReady=desiredPlay)
         work = scope.launch {
             try {
                 val loaded = repository.article(story)
@@ -314,7 +318,7 @@ class ReadAloudService : MediaSessionService() {
         paragraph=PlaybackBounds.paragraph(segments,baseSegment)
         contentReady=true
         speechFailed=false;voiceMissing=false
-        PlaybackSignals.mutable.value = PlaybackStatus(article = loaded.story.url, preparing = segments.isNotEmpty(),mode=mode,noteId=customNoteId)
+        PlaybackSignals.mutable.value = PlaybackStatus(article = loaded.story.url, preparing = segments.isNotEmpty(),mode=mode,noteId=customNoteId,story=loaded.story,playWhenReady=desiredPlay&&segments.isNotEmpty())
         // 首段完成即可播放；预取按可播放时长计量，并限制为最多八段。
         work = null
         fillAhead()
@@ -438,7 +442,7 @@ class ReadAloudService : MediaSessionService() {
         val segment = segments.getOrNull(baseSegment + maxOf(0, player.currentMediaItemIndex))
         PlaybackSignals.mutable.value = PlaybackStatus(article?.story?.url.orEmpty(), segment?.blockId.orEmpty(), player.isPlaying,
             player.mediaItemCount == 0 && work?.isActive == true && !speechFailed && !voiceMissing,voiceMissing,speechFailed,
-            currentSegmentIndex(),segments.size,mode,customNoteId)
+            currentSegmentIndex(),segments.size,mode,customNoteId,article?.story,desiredPlay&&(contentReady||noteEditToken!=null))
     }
     private fun reportFailure(error:Exception,url:String=article?.story?.url.orEmpty()) {
         voiceMissing=error is VoiceUnavailable;speechFailed=!voiceMissing
@@ -464,6 +468,8 @@ class ReadAloudService : MediaSessionService() {
     }
     private fun stopReading() {
         persist(); work?.cancel(); work = null; engine.cancel(); generation++
+        desiredPlay=false
+        resetting=true;player.pause();resetting=false
         // 停止期间禁止清空媒体项的回调再次触发预取，避免旧稿在停止后重新入队。
         resetPlayer(); contentReady=false; segments = emptyList(); article = null;customNoteId=null;noteEditToken=null; queue.clear()
         speechFailed=false;voiceMissing=false

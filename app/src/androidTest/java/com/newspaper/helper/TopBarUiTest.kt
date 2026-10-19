@@ -2,6 +2,10 @@ package com.newspaper.helper
 
 import android.graphics.Bitmap
 import android.view.View
+import android.view.MotionEvent
+import android.view.InputDevice
+import android.os.SystemClock
+import com.google.android.material.slider.Slider
 import android.widget.EditText
 import androidx.lifecycle.ViewModelProvider
 import androidx.test.core.app.ActivityScenario
@@ -37,6 +41,46 @@ class TopBarUiTest {
         File(directory,"${app.resources.configuration.screenWidthDp}-$name.png").outputStream().use {
             bitmap.compress(Bitmap.CompressFormat.PNG,100,it)
         }
+    }
+    @Test fun fontStopsAcceptDirectTapsWithoutRecreatingTheSlider() {
+        val store=SettingsStore(app)
+        runBlocking {store.route(jsonCodec.toJson(Route()));store.appearance(0,2,2)}
+        ActivityScenario.launch(MainActivity::class.java).use {scenario->
+            waitFor("Home not ready") {var ok=false;scenario.onActivity {ok=it.findViewById<View>(R.id.settings).isShown};ok}
+            scenario.onActivity {it.findViewById<View>(R.id.settings).performClick()}
+            for(theme in 0..2) {
+                runBlocking {store.appearance(theme,2,2)}
+                waitFor("Font panel not ready") {var ok=false;scenario.onActivity {ok=it.window.decorView.findViewWithTag<Slider>("fontSlider")?.isShown==true&&it.palette.bg==Palette.forTheme(theme).bg};ok}
+                for(stop in listOf(0,3,1,2,3,0,2)) {
+                    lateinit var slider:Slider
+                    val xy=FloatArray(2)
+                    scenario.onActivity {
+                        slider=it.window.decorView.findViewWithTag("fontSlider")
+                        val at=IntArray(2);slider.getLocationOnScreen(at)
+                        xy[0]=at[0]+slider.width*floatArrayOf(.02f,.34f,.66f,.98f)[stop]
+                        xy[1]=at[1]+slider.height/2f
+                    }
+                    val down=SystemClock.uptimeMillis()
+                    for(action in listOf(MotionEvent.ACTION_DOWN,MotionEvent.ACTION_UP)) {
+                        val event=MotionEvent.obtain(down,SystemClock.uptimeMillis(),action,xy[0],xy[1],0).apply {source=InputDevice.SOURCE_TOUCHSCREEN}
+                        try {assertTrue(instrumentation.uiAutomation.injectInputEvent(event,true))} finally {event.recycle()}
+                        if(action==MotionEvent.ACTION_DOWN)Thread.sleep(24)
+                    }
+                    waitFor("Direct font tap selected the wrong stop: theme=$theme stop=$stop") {
+                        var correct=false
+                        scenario.onActivity {
+                            val after=it.window.decorView.findViewWithTag<Slider>("fontSlider")
+                            assertSame("Font persistence rebuilt the active slider",slider,after)
+                            correct=after.value==stop.toFloat()
+                        }
+                        correct&&runBlocking {store.flow.first().font==stop}
+                    }
+                }
+                shot("font-taps-$theme")
+            }
+        }
+        shell("mkdir -p /sdcard/Download/dubao-topbar-evidence")
+        shell("cp -r /sdcard/Android/data/com.newspaper.helper/files/topbar-evidence/. /sdcard/Download/dubao-topbar-evidence/")
     }
     @Test fun actionsFollowPageAndSheetsOverlayWithoutBottomBar() {
         val store=SettingsStore(app)

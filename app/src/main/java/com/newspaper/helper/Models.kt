@@ -26,7 +26,7 @@ data class Issue(val label: String, val url: String, val date: String = label)
 data class Story(val paper: Paper, val url: String, val title: String, val section: String = "", val date: String = "", val author: String = "")
 enum class BlockKind { TITLE, PARAGRAPH, IMAGE, CAPTION, LIST, QUOTE, TABLE }
 data class BodyBlock(val id: String, val kind: BlockKind, val text: String = "", val url: String = "", val parent: String = "")
-data class Article(val story: Story, val blocks: List<BodyBlock>)
+data class Article(val story: Story, val blocks: List<BodyBlock>,val parserVersion:Int=ContentParser.VERSION)
 data class SourceResult<T>(val items: List<T>, val failures: List<String> = emptyList()) {
     val complete get() = failures.isEmpty()
 }

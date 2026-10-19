@@ -7,6 +7,7 @@ import android.graphics.Typeface
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
+import android.view.MotionEvent
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.view.isVisible
@@ -15,6 +16,7 @@ import com.google.android.material.slider.LabelFormatter
 import com.google.android.material.slider.Slider
 import com.newspaper.helper.databinding.ActivityMainBinding
 import java.util.Locale
+import kotlin.math.roundToInt
 
 /** 顶栏和悬浮面板共用真实播放状态；不占正文高度，不生成演示进度或文案。 */
 internal class ReadingChrome(
@@ -23,7 +25,6 @@ internal class ReadingChrome(
     private val player: () -> Player?,
     private val settingsChanged: (Int?, Int?, Int?) -> Unit,
     private val play: () -> Unit,
-    private val start: () -> Unit,
     private val command: (String, Bundle) -> Unit
 ) {
     private enum class Panel { TYPE, SPEECH }
@@ -38,6 +39,9 @@ internal class ReadingChrome(
     private var duration: TextView? = null
     private var progress: Slider? = null
     private var seeking = false
+    private var fontSlider:Slider?=null
+    private var fontLabel:TextView?=null
+    private var fontTracking=false
     private var seekMediaId: String? = null
     private val speedButtons = mutableListOf<TextView>()
     private var speedThumb:View?=null
@@ -45,6 +49,11 @@ internal class ReadingChrome(
     private var panelRevision=0L
     private var modeToast=false
     private val ink get() = ChromeColors.forTheme(settings.theme)
+    private fun hasCurrentAudio() = when(route?.page) {
+        Page.CUSTOM -> route?.noteId!=null && route?.noteId==status.noteId
+        Page.READER -> route?.story?.url==status.article
+        else -> false
+    }
     private fun dp(n: Int) = host.dp(n)
     private fun label(resource: Int) = host.getString(resource)
     private fun text(value: String, size: Float = 13f, color: Int = ink.text) = host.text(value,size,color)
@@ -57,7 +66,7 @@ internal class ReadingChrome(
         binding.settings.text = android.text.SpannableString(label(R.string.ui_aa)).apply {
             setSpan(android.text.style.RelativeSizeSpan(.72f),1,2,android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
-        binding.speech.setOnClickListener { toggle(Panel.SPEECH); if (panel == Panel.SPEECH) start() }
+        binding.speech.setOnClickListener { toggle(Panel.SPEECH) }
         binding.settings.setOnClickListener { toggle(Panel.TYPE) }
         binding.settings.pressFeedback()
         binding.dismissPanel.setOnClickListener { close() }
@@ -74,10 +83,17 @@ internal class ReadingChrome(
         styleButtons()
     }
     fun appearance(next: ReaderSettings) {
+        val previous=settings
         val changed = next.theme != settings.theme || next.font != settings.font || next.line != settings.line
         settings = next
         styleButtons()
-        if (changed && panel != null) build()
+        if(changed && panel!=null) {
+            if(panel==Panel.TYPE && next.theme==previous.theme && next.line==previous.line) {
+                // 字号回写只更新原控件，不能在手势中销毁滑条，导致后续触摸落到新滑条的最小值。
+                if(!fontTracking && fontSlider?.value!=next.font.toFloat())fontSlider?.value=next.font.toFloat()
+                fontLabel?.text=label(listOf(R.string.ui_small,R.string.ui_medium,R.string.ui_large,R.string.ui_xlarge)[next.font])
+            } else build()
+        }
     }
     fun playback(next: PlaybackStatus) {
         if(modeToast && next.mode!=status.mode) {modeToast=false;android.widget.Toast.makeText(host,label(modeLabel(next.mode)),android.widget.Toast.LENGTH_SHORT).show()}
@@ -139,13 +155,15 @@ internal class ReadingChrome(
     private fun add(view: View, height: Int = -2, margin: Int = 0) {
         binding.panelContent.addView(view,LinearLayout.LayoutParams(-1,if(height < 0) height else dp(height)).apply { topMargin = dp(margin) })
     }
-    private fun heading(resource: Int, value: String? = null, margin: Int = 0) {
+    private fun heading(resource: Int, value: String? = null, margin: Int = 0):TextView? {
         val row = row()
         row.addView(text(label(resource),13f,ink.muted),LinearLayout.LayoutParams(0,dp(24),1f))
-        value?.let { row.addView(text(it).apply { setTypeface(typeface,Typeface.BOLD) }) }
+        val selected=value?.let {text(it).apply {setTypeface(typeface,Typeface.BOLD)}}
+        selected?.let {row.addView(it)}
         add(row,margin=margin)
+        return selected
     }
-    private fun slider(max: Float, value: Float, description: Int) = Slider(host).apply {
+    private fun slider(max: Float, value: Float, description: Int, view:Slider=Slider(host)) = view.apply {
         valueFrom = 0f; valueTo = max; this.value = value.coerceIn(0f,max)
         contentDescription = label(description)
         labelBehavior = LabelFormatter.LABEL_GONE
@@ -158,6 +176,7 @@ internal class ReadingChrome(
     private fun build() {
         binding.panelContent.removeAllViews()
         playButton = null; modeButton = null; count = null; elapsed = null; duration = null; progress = null
+        fontSlider=null;fontLabel=null;fontTracking=false
         speedButtons.clear();speedThumb=null;speedTrack=null; seeking = false
         binding.sheet.background = box(ink.card,24)
         binding.sheet.scrollTo(0,0)
@@ -165,21 +184,36 @@ internal class ReadingChrome(
     }
     private fun buildType() {
         val sizes = listOf(R.string.ui_small,R.string.ui_medium,R.string.ui_large,R.string.ui_xlarge)
-        heading(R.string.ui_font,label(sizes[settings.font]))
+        fontLabel=heading(R.string.ui_font,label(sizes[settings.font]))
         val fontRow = row()
         fontRow.addView(text("A",12f,ink.muted),LinearLayout.LayoutParams(dp(24),-2))
-        fontRow.addView(slider(3f,settings.font.toFloat(),R.string.ui_font).apply {
-            var tracking=false
+        fun commitFont(slider:Slider,selected:Int) {
+            if(fontSlider!==slider || panel!=Panel.TYPE)return
+            settingsChanged(null,selected.coerceIn(0,3),null)
+        }
+        val touchSlider=object:Slider(host) {
+            override fun onTouchEvent(event:MotionEvent):Boolean {
+                if(event.actionMasked==MotionEvent.ACTION_DOWN)fontTracking=true
+                val handled=super.onTouchEvent(event)
+                when(event.actionMasked) {
+                    MotionEvent.ACTION_UP->{val selected=value.roundToInt();fontTracking=false;post {commitFont(this,selected)}}
+                    MotionEvent.ACTION_CANCEL->{fontTracking=false;value=settings.font.toFloat()}
+                }
+                return handled
+            }
+            override fun performClick():Boolean=super.performClick()
+        }
+        fontSlider=slider(3f,settings.font.toFloat(),R.string.ui_font,touchSlider).apply {
+            tag="fontSlider"
             stepSize = 1f
             thumbTintList = ColorStateList.valueOf(android.graphics.Color.WHITE)
             setLabelFormatter { label(sizes[it.toInt()]) }
-            addOnSliderTouchListener(object : Slider.OnSliderTouchListener {
-                override fun onStartTrackingTouch(slider: Slider) { tracking=true }
-                override fun onStopTrackingTouch(slider: Slider) { tracking=false;settingsChanged(null,slider.value.toInt(),null) }
-            })
-            // 键盘和辅助功能调整也会触发 value change，拖动时仅在松手保存。
-            addOnChangeListener { _,value,fromUser -> if (fromUser && !tracking) settingsChanged(null,value.toInt(),null) }
-        },LinearLayout.LayoutParams(0,dp(44),1f))
+            // Material 的点按也可能先发 value change，统一等触摸结束；键盘/辅助功能独立提交。
+            addOnChangeListener { slider,value,fromUser ->if(fromUser && !fontTracking) {
+                val selected=value.roundToInt();slider.post {commitFont(slider,selected)}
+            } }
+        }
+        fontRow.addView(fontSlider,LinearLayout.LayoutParams(0,dp(44),1f))
         fontRow.addView(text("A",22f,ink.muted).apply { gravity=Gravity.END },LinearLayout.LayoutParams(dp(24),-2))
         add(fontRow)
         val gaps = listOf(R.string.ui_tight,R.string.ui_standard,R.string.ui_loose,R.string.ui_wider)
@@ -302,15 +336,17 @@ internal class ReadingChrome(
             isSelected=status.mode!=PlaybackMode.FULL_ONCE
             ink=if(status.mode==PlaybackMode.FULL_ONCE) this@ReadingChrome.ink.muted else this@ReadingChrome.ink.accent
         }
-        playButton?.glyph = if(status.playing) Glyph.PAUSE else if(status.failed || status.voiceMissing) Glyph.RETRY else Glyph.PLAY
+        val active=hasCurrentAudio()
+        playButton?.glyph = if(active&&status.playing) Glyph.PAUSE else if(active&&(status.failed || status.voiceMissing)) Glyph.RETRY else Glyph.PLAY
         count?.text = when {
+            !active -> "— / —"
             status.failed || status.voiceMissing -> label(R.string.ui_retry)
             status.preparing -> label(R.string.ui_loading)
             status.segmentCount > 0 -> "${(status.segmentIndex+1).coerceAtMost(status.segmentCount)} / ${status.segmentCount}"
             else -> "— / —"
         }
         val p=player()
-        val total=p?.duration?.takeIf { it>0 } ?: 0L
+        val total=if(active)p?.duration?.takeIf {it>0} ?: 0L else 0L
         val position=p?.currentPosition?.coerceIn(0L,total) ?: 0L
         progress?.isEnabled=total>0 && p?.isCurrentMediaItemSeekable==true
         if(!seeking) progress?.value=if(total>0) (position.toFloat()/total*1000).coerceIn(0f,1000f) else 0f

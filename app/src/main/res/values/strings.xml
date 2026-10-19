@@ -40,6 +40,7 @@
     <string name="a11y_custom">粘贴文本朗读</string>
     <string name="a11y_play">播放或暂停</string>
     <string name="a11y_read">语音朗读</string>
+    <string name="a11y_now_playing">返回正在朗读的内容</string>
     <string name="a11y_segment_progress">当前朗读片段进度</string>
     <string name="a11y_stop">停止朗读</string>
     <string name="a11y_previous">上一段</string>

@@ -59,6 +59,30 @@ class SourceRegressionTest {
             assertEquals(article.blocks.size,article.blocks.map { it.id }.distinct().size)
         }
     }
+    @Test fun oldAndNewQiushiExcludeWebsiteFooterFromBothReadingAndSpeech() {
+        for(name in listOf("qiushi-article.html","qiushi-2019-article.html")) {
+            val article=ContentParser.article(Story(Paper.QIUSHI,urls.getString("qiushi-article"),""),sample(name))
+            assertTrue(article.blocks.sumOf {it.text.length}>100)
+            assertFalse(name,article.blocks.any {it.text.contains("扫描二维码分享到手机")||it.text.contains("网站编辑 -")})
+            assertFalse(name,article.blocks.any {"zxcode_" in it.url||"v7_index_1223_25.jpg" in it.url})
+            assertFalse(name,Segmenter.split(article).any {it.text.contains("网站编辑")||it.text.contains("扫描二维码分享到手机")})
+        }
+    }
+    @Test fun qiushiSelectorPriorityPreservesRealImagesAuthorsAndNewsAboutQrCodes() {
+        val html="""<div class="inner"><h1>正文标题</h1><div class="text">
+            <div class="clipboard_text"><div id="detailContent"><p>网站编辑介绍如何扫描二维码分享到手机。</p>
+            <figure><img src="research-qr.png"><figcaption>正文中的二维码研究配图。</figcaption></figure><p>作者：研究人员</p></div></div>
+            <div class="xl_ewm"><img src="zxcode_footer.jpg"><div class="text">扫描二维码分享到手机</div></div>
+            <div class="fs-text pull-right">网站编辑 - 页尾人员</div></div></div>"""
+        val article=ContentParser.article(Story(Paper.QIUSHI,"https://www.qstheory.cn/20261019/example/c.html",""),html)
+        assertEquals(4,article.blocks.size)
+        assertEquals("网站编辑介绍如何扫描二维码分享到手机。",article.blocks.first().text)
+        assertTrue(article.blocks.single {it.kind==BlockKind.IMAGE}.url.endsWith("research-qr.png"))
+        assertEquals("作者：研究人员",article.blocks.last().text)
+        // 最旧模板只能回退到外层 .text，也按专属结构排除网站附属区域。
+        val fallback=html.replace("class=\"clipboard_text\"","").replace("id=\"detailContent\"","")
+        assertEquals(article.blocks,ContentParser.article(article.story,fallback).blocks)
+    }
     @Test fun structureKeepsShortSentencesImageOnlyParagraphsAndLegitimateKeywords() {
         val html="<nav>上一篇</nav><p>好。</p><p>广告法与债权公告是正常新闻。</p><p><img src='../a.jpg'></p><figure><img src='//example.org/b.jpg'><figcaption>图注</figcaption></figure><ol><li>第一项</li><li>第二项</li></ol><blockquote>引用</blockquote><table><tr><th>甲</th><th>乙</th></tr><tr><td>一</td><td>二</td></tr></table>"
         val blocks=ContentParser.blocks(html,"https://example.org/news/a.html")

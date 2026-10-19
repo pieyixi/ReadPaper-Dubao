@@ -81,7 +81,7 @@ class NativeRows(private val host: MainActivity, private val onClick: (NativeRow
                         addView(host.text(paper.subtitle,12f,0xddffffff.toInt()).apply { gravity=Gravity.CENTER; setPadding(0,host.dp(4),0,0) })
                         isClickable = true; isFocusable = true; contentDescription = paper.label
                         pressFeedback()
-                        setOnClickListener { host.expandFrom(this,paper.colors[0]);host.openPaper(paper) }
+                        setOnClickListener { host.openPaper(paper) }
                     }
                     val width = host.resources.configuration.screenWidthDp
                     val gap = if (width <= 360) 10 else 16

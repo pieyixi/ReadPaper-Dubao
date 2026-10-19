@@ -31,7 +31,7 @@ internal class NativeNotes(private val host:MainActivity,private val b:ActivityM
         b.noteList.adapter=adapter
         (b.noteList.itemAnimator as? androidx.recyclerview.widget.SimpleItemAnimator)?.supportsChangeAnimations=false
         b.newNote.glyph=Glyph.ADD;b.newNote.contentDescription=host.getString(R.string.a11y_new_note)
-        b.newNote.setOnClickListener { if(screen.route.page==Page.NOTES && !screen.selecting) {host.expandFrom(b.newNote);model.newNote()} }
+        b.newNote.setOnClickListener { if(screen.route.page==Page.NOTES && !screen.selecting)model.newNote() }
         b.selectAll.glyph=Glyph.SELECT_ALL;b.selectAll.setOnClickListener {model.selectAll()}
         b.pinIcon.glyph=Glyph.PIN;b.deleteIcon.glyph=Glyph.DELETE
         listOf(b.pinIcon,b.deleteIcon).forEach {it.isClickable=false;it.isFocusable=false;it.importantForAccessibility=View.IMPORTANT_FOR_ACCESSIBILITY_NO}
@@ -119,7 +119,7 @@ internal class NativeNotes(private val host:MainActivity,private val b:ActivityM
             box.setOnClickListener {
                 val index=bindingAdapterPosition;if(index==RecyclerView.NO_POSITION)return@setOnClickListener
                 val note=adapter.currentList[index]
-                if(screen.selecting)model.selection(note.id) else {host.expandFrom(box);model.navigate(Route(Page.CUSTOM,noteId=note.id))}
+                if(screen.selecting)model.selection(note.id) else model.navigate(Route(Page.CUSTOM,noteId=note.id))
             }
             box.setOnLongClickListener {
                 val index=bindingAdapterPosition

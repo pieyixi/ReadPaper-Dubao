@@ -66,6 +66,8 @@ class MainActivity : AppCompatActivity() {
     private var pendingEditToken:String?=null
     private var pendingSpeech: SpeechRequest? = null
     private var voiceSettingsOpened = false
+    private var pendingPlayingTarget:String?=null
+    private var openPlayingJob:Job?=null
     val palette: Palette get() = Palette.forTheme(appearance.theme)
     fun dp(value: Int) = (value * resources.displayMetrics.density + .5f).toInt()
 
@@ -73,14 +75,11 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        motion=NativeMotion(this,binding.readerFrame)
+        motion=NativeMotion(this)
         notes=NativeNotes(this,binding,model)
         chrome = ReadingChrome(this,binding,{ controller },
             { theme,font,line -> model.changeSettings(theme ?: appearance.theme,font ?: appearance.font,line ?: appearance.line) },
-            ::playOrPause,{
-                if(current.route.page==Page.CUSTOM) lifecycleScope.launch {if(model.customArticle().story.url!=status.article)playOrPause()}
-                else if(status.article!=current.article?.story?.url || status.article.isEmpty()) playOrPause()
-            },::command)
+            ::playOrPause,::command)
         rows = NativeRows(this, ::rowClick)
         binding.list.layoutManager = LinearLayoutManager(this)
         binding.list.adapter = rows
@@ -102,6 +101,9 @@ class MainActivity : AppCompatActivity() {
         binding.paste.glyph = Glyph.PASTE
         binding.paste.contentDescription = getString(R.string.a11y_custom)
         binding.paste.setOnClickListener { model.navigate(Route(Page.NOTES)) }
+        binding.nowPlaying.glyph=Glyph.HEADPHONES
+        binding.nowPlaying.contentDescription=getString(R.string.a11y_now_playing)
+        binding.nowPlaying.setOnClickListener {openPlaying()}
         binding.settings.contentDescription = getString(R.string.a11y_settings)
         binding.editor.contentDescription = getString(R.string.a11y_editor)
         binding.editor.setText(model.draft)
@@ -169,24 +171,10 @@ class MainActivity : AppCompatActivity() {
                 } }
                 launch { PlaybackSignals.state.collect { playback ->
                     status = playback
-                    if (current.route.page == Page.CUSTOM) {
-                        val edit = binding.editor.text
-                        edit.getSpans(0,edit.length,android.text.style.BackgroundColorSpan::class.java).forEach { edit.removeSpan(it) }
-                        val rawLine = if(playback.noteId==current.route.noteId)playback.block.removePrefix("custom-").toIntOrNull() else null
-                        val line=rawLine?.minus(if(model.draftTitle.isNotBlank())1 else 0)
-                        binding.noteTitle.setBackgroundColor(if(line==-1 && playback.article.startsWith("custom:")) if(appearance.theme==1)0xff273848.toInt() else 0xffedf3f8.toInt() else Color.TRANSPARENT)
-                        if (line != null && line>=0 && playback.article.startsWith("custom:")) {
-                            var start = 0
-                            repeat(line) { start = edit.indexOf('\n',start).let { if (it < 0) edit.length else it + 1 } }
-                            val end = edit.indexOf('\n',start).let { if (it < 0) edit.length else it }
-                            if (start < end) {
-                                edit.setSpan(android.text.style.BackgroundColorSpan(if (appearance.theme==1) 0xff273848.toInt() else 0xffedf3f8.toInt()),start,end,android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                                if (playback.playing && !binding.editor.hasFocus() && !binding.noteTitle.hasFocus()) binding.editor.bringPointIntoView(start)
-                            }
-                        }
-                    }
+                    highlightNotePlayback(playback,playback.playing)
                     rows.highlight = if (playback.article == current.article?.story?.url) playback.block else ""
                     chrome.playback(playback)
+                    updateNowPlaying()
                     if (playback.playing && playback.article == current.article?.story?.url) {
                         val position = rows.items.indexOfFirst { it.block?.id == playback.block }
                         val lm = binding.list.layoutManager as LinearLayoutManager
@@ -196,6 +184,68 @@ class MainActivity : AppCompatActivity() {
                 launch { while(true) { chrome.updateProgress(); kotlinx.coroutines.delay(500) } }
             }
         }
+        if(intent?.action==ReadAloudService.OPEN_PLAYING)openPlaying()
+    }
+    override fun onNewIntent(intent:Intent) {
+        super.onNewIntent(intent);setIntent(intent)
+        if(intent.action==ReadAloudService.OPEN_PLAYING)openPlaying()
+    }
+    private fun playingRoute(playback:PlaybackStatus):Route? {
+        if(playback.article.isBlank())return null
+        playback.noteId?.let {return Route(Page.CUSTOM,noteId=it)}
+        return playback.story?.takeUnless {it.url.startsWith("custom:")}?.let {Route(Page.READER,it.paper,date=it.date,story=it)}
+    }
+    private fun targetKey(route:Route)=if(route.page==Page.CUSTOM)"note:${route.noteId}" else route.story?.url
+    private fun openPlaying() {
+        // 只读取当前服务状态，不把建立通知时的旧篇目固化在 PendingIntent 中。
+        intent?.takeIf {it.action==ReadAloudService.OPEN_PLAYING}?.action=null
+        openPlayingJob?.cancel()
+        openPlayingJob=lifecycleScope.launch {
+            model.initialized.await()
+            val destination=playingRoute(PlaybackSignals.state.value) ?: return@launch
+            pendingPlayingTarget=targetKey(destination)
+            chrome.close()
+            if(targetKey(current.route)==pendingPlayingTarget && current.route.page==destination.page)focusPlayingIfReady()
+            else model.navigate(destination)
+        }
+    }
+    private fun updateNowPlaying() {
+        val playback=PlaybackSignals.state.value
+        val visible=current.route.page==Page.HOME && playback.playWhenReady && !playback.failed && !playback.voiceMissing && playingRoute(playback)!=null
+        binding.nowPlaying.isVisible=visible
+        binding.nowPlaying.playing=visible&&lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+    }
+    private fun highlightNotePlayback(playback:PlaybackStatus,scroll:Boolean) {
+        if(current.route.page!=Page.CUSTOM)return
+        val edit=binding.editor.text
+        edit.getSpans(0,edit.length,android.text.style.BackgroundColorSpan::class.java).forEach {edit.removeSpan(it)}
+        val rawLine=if(playback.noteId==current.route.noteId)playback.block.removePrefix("custom-").toIntOrNull() else null
+        val line=rawLine?.minus(if(model.draftTitle.isNotBlank())1 else 0)
+        val highlight=if(appearance.theme==1)0xff273848.toInt() else 0xffedf3f8.toInt()
+        binding.noteTitle.setBackgroundColor(if(line==-1 && playback.article.startsWith("custom:"))highlight else Color.TRANSPARENT)
+        if(line!=null && line>=0 && playback.article.startsWith("custom:")) {
+            var start=0
+            repeat(line) {start=edit.indexOf('\n',start).let {if(it<0)edit.length else it+1}}
+            val end=edit.indexOf('\n',start).let {if(it<0)edit.length else it}
+            if(start<end) {
+                edit.setSpan(android.text.style.BackgroundColorSpan(highlight),start,end,android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                if(scroll && !binding.editor.hasFocus() && !binding.noteTitle.hasFocus())binding.editor.bringPointIntoView(start)
+            }
+        }
+    }
+    private fun focusPlayingIfReady() {
+        if(current.loading || pendingPlayingTarget==null || targetKey(current.route)!=pendingPlayingTarget)return
+        val playback=PlaybackSignals.state.value
+        val destination=playingRoute(playback) ?: return
+        if(targetKey(destination)!=pendingPlayingTarget) {pendingPlayingTarget=null;return}
+        if(current.route.page==Page.CUSTOM) {
+            binding.editor.doOnPreDraw {highlightNotePlayback(PlaybackSignals.state.value,true)}
+        } else {
+            val index=rows.items.indexOfFirst {it.block?.id==playback.block}
+            if(index<0)return
+            (binding.list.layoutManager as LinearLayoutManager).scrollToPositionWithOffset(index,dp(8))
+        }
+        pendingPlayingTarget=null
     }
     private fun connectController() {
         val future = MediaController.Builder(this, SessionToken(this, ComponentName(this, ReadAloudService::class.java))).buildAsync()
@@ -212,7 +262,6 @@ class MainActivity : AppCompatActivity() {
         if (!model.back()) finish()
         if(model.screen.value.route==current.route)returning=false
     }
-    fun expandFrom(source:View,color:Int=ChromeColors.forTheme(appearance.theme).accent) {motion.expand(source,color)}
     fun deletedNotes(ids:Set<String>) {if(status.noteId in ids || pendingEditNote in ids)command("stop")}
     private fun cancelNoteEdit() {
         noteEditJob?.cancel();noteEditJob=null;pendingEditNote=null;pendingEditToken=null
@@ -286,6 +335,8 @@ class MainActivity : AppCompatActivity() {
         window.statusBarColor = p.bg; window.navigationBarColor = p.bg
         if (Build.VERSION.SDK_INT >= 23) window.decorView.systemUiVisibility = if (appearance.theme == 1) 0 else View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
         chrome.appearance(appearance)
+        binding.nowPlaying.background=rounded(ChromeColors.forTheme(appearance.theme).accent,99)
+        binding.nowPlaying.ink=Color.WHITE
         rows.appearance = appearance
     }
     private fun playOrPause() {
@@ -331,6 +382,7 @@ class MainActivity : AppCompatActivity() {
         val revision=++renderRevision
         val changedRoute=visualRoute!=route
         if(changedRoute) {
+            if(pendingPlayingTarget!=targetKey(route))pendingPlayingTarget=null
             speechRevision++
             motion.cancelEntry()
             val previousReady=!restoring && lastRoute==visualRoute
@@ -369,6 +421,7 @@ class MainActivity : AppCompatActivity() {
             if(changedRoute)finishNoteEditing()
         }
         notes.render(current,appearance)
+        updateNowPlaying()
         if(current.noteError && !lastNoteError)android.widget.Toast.makeText(this,R.string.ui_error,android.widget.Toast.LENGTH_LONG).show()
         lastNoteError=current.noteError
         fun enterWhenReady() {
@@ -427,6 +480,8 @@ class MainActivity : AppCompatActivity() {
                 }
                 binding.list.doOnPreDraw {if(current.route==route && lastRoute==route)restoring=false}
             }
+            if(route.page==Page.CUSTOM)highlightNotePlayback(PlaybackSignals.state.value,false)
+            focusPlayingIfReady()
             enterWhenReady()
         }
     }
@@ -451,6 +506,7 @@ class MainActivity : AppCompatActivity() {
     fun rounded(color: Int, radius: Int) = GradientDrawable().apply { setColor(color); cornerRadius = dp(radius).toFloat() }
     override fun onResume() {
         super.onResume()
+        if(::binding.isInitialized)updateNowPlaying()
         if (voiceSettingsOpened) { command("refreshVoice");voiceSettingsOpened=false }
     }
     override fun onPause() {
@@ -462,6 +518,7 @@ class MainActivity : AppCompatActivity() {
         }
         super.onPause()
     }
+    override fun onStop() {if(::binding.isInitialized)binding.nowPlaying.playing=false;super.onStop()}
     override fun onDestroy() {
         if(::motion.isInitialized)motion.cancel()
         controllerFuture?.let { MediaController.releaseFuture(it) }

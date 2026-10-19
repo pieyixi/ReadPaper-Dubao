@@ -7,6 +7,7 @@ import org.jsoup.nodes.TextNode
 import java.net.URI
 
 object ContentParser {
+    const val VERSION=2
     fun safeUrl(base: String, raw: String): String? = runCatching {
         val u = URI(base).resolve(raw.trim()).normalize()
         if (u.scheme !in listOf("http", "https") || u.host.isNullOrBlank() || u.userInfo != null) null
@@ -81,8 +82,10 @@ object ContentParser {
             Paper.QIUSHI -> "#detailContent, .clipboard_text, .inner .text"
             Paper.ORGANIZATION -> "body"
         }
-        val content = doc.selectFirst(selector)?.clone()
+        // 逗号选择器按 DOM 顺序返回，不按书写优先级；求是外层 .text 会把二维码、编辑栏一起选中。
+        val content = selector.split(',').firstNotNullOfOrNull {doc.selectFirst(it.trim())}?.clone()
         content?.select("h1,.sec,.datesource,.article-title,.article-meta,.appellation,.pubtime")?.remove()
+        if(story.paper==Paper.QIUSHI)content?.select(".xl_ewm,.sharebox,.fs-text,.fs-line,.fs-line_b,.fs-pinglun,#videoArea")?.remove()
         val raw = content?.html() ?: Regex("<!--enpcontent-->([\\s\\S]*?)<!--/enpcontent-->").find(html)?.groupValues?.get(1)
             ?: error("Body selector missing: ${story.url}")
         val body = blocks(raw, story.url)
