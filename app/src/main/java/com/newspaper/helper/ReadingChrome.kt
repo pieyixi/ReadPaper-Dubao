@@ -50,6 +50,9 @@ internal class ReadingChrome(
     init {
         binding.speech.glyph = Glyph.HEADPHONES
         binding.speech.contentDescription = label(R.string.a11y_read)
+        binding.settings.text = android.text.SpannableString(label(R.string.ui_aa)).apply {
+            setSpan(android.text.style.RelativeSizeSpan(.72f),1,2,android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
         binding.speech.setOnClickListener { toggle(Panel.SPEECH); if (panel == Panel.SPEECH) start() }
         binding.settings.setOnClickListener { toggle(Panel.TYPE) }
         binding.dismissPanel.setOnClickListener { close() }

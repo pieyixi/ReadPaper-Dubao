@@ -151,6 +151,7 @@ class MainActivity : AppCompatActivity() {
         rows.appearance = appearance
     }
     private fun playOrPause() {
+        if (current.route.page==Page.READER && current.article==null) return
         if (status.voiceMissing) {
             voiceSettingsOpened = true
             runCatching { startActivity(Intent(TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA)) }.recoverCatching {

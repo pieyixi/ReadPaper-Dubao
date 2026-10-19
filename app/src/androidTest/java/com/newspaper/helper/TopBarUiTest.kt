@@ -27,8 +27,10 @@ class TopBarUiTest {
     private fun shot(name:String) {
         instrumentation.waitForIdleSync();Thread.sleep(250)
         val directory=File(app.getExternalFilesDir(null),"topbar-evidence").apply { mkdirs() }
+        val bitmap=instrumentation.uiAutomation.takeScreenshot()
+        assertEquals("Screenshot framebuffer differs from app display",app.resources.displayMetrics.widthPixels,bitmap.width)
         File(directory,"${app.resources.configuration.screenWidthDp}-$name.png").outputStream().use {
-            instrumentation.uiAutomation.takeScreenshot().compress(Bitmap.CompressFormat.PNG,100,it)
+            bitmap.compress(Bitmap.CompressFormat.PNG,100,it)
         }
     }
     @Test fun actionsFollowPageAndSheetsOverlayWithoutBottomBar() {
@@ -39,6 +41,13 @@ class TopBarUiTest {
             fun click(id:Int) { scenario.onActivity { it.findViewById<View>(id).performClick() };instrumentation.waitForIdleSync() }
             fun navigate(route:Route) { scenario.onActivity { ViewModelProvider(it)[ReaderViewModel::class.java].navigate(route) };instrumentation.waitForIdleSync() }
             waitFor("Home actions missing") { visible(R.id.paste) && visible(R.id.settings) }
+            val expected=InstrumentationRegistry.getArguments().getString("expectedWidth")?.toInt()
+            scenario.onActivity {
+                expected?.let { width -> assertEquals("Wrong activity screen width",width,it.resources.configuration.screenWidthDp) }
+                assertEquals("App context differs from activity",app.resources.configuration.screenWidthDp,it.resources.configuration.screenWidthDp)
+                val metrics=it.resources.displayMetrics
+                assertEquals("Window does not fill display",metrics.widthPixels,it.findViewById<View>(R.id.root).width)
+            }
             assertFalse(visible(R.id.speech))
             var height=0
             scenario.onActivity {
