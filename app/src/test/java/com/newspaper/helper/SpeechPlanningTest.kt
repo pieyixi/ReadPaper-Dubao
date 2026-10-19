@@ -5,6 +5,10 @@ import org.junit.Test
 import java.io.File
 
 class SpeechPlanningTest {
+    @Test fun noteCharacterCountTreatsEmojiAsOneAndExcludesUnicodeSpaces() {
+        assertEquals(3,NoteText.count("中😀A\n\t \u00a0\u3000"))
+        assertEquals(0,NoteText.count(""))
+    }
     private fun article(text:String)=Article(Story(Paper.PEOPLE,"https://example.org/news",""),listOf(BodyBlock("body",BlockKind.PARAGRAPH,text=text)))
     private val engine=object:SpeechEngine {
         override suspend fun synthesize(text:String,file:File)=Unit

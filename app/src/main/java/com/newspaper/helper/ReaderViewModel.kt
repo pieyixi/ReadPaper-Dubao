@@ -153,7 +153,7 @@ class ReaderViewModel(application: Application, private val saved: SavedStateHan
     fun pinNotes() {
         val s=screen.value;if(s.selected.isEmpty())return
         val pin=!s.notes.filter { it.id in s.selected }.all { it.pinned }
-        viewModelScope.launch { try { repository.dao.pinNotes(s.selected.toList(),pin);selection() } catch(e:Exception) { mutable.value=mutable.value.copy(noteError=true) } }
+        viewModelScope.launch { try { lastWrite?.join();repository.dao.pinNotes(s.selected.toList(),pin);selection() } catch(e:Exception) { mutable.value=mutable.value.copy(noteError=true) } }
     }
     fun deleteNotes() {
         val ids=screen.value.selected.toList();if(ids.isEmpty())return

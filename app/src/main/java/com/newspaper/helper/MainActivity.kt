@@ -166,7 +166,7 @@ class MainActivity : AppCompatActivity() {
         val title=binding.noteTitle.text.toString();val body=binding.editor.text.toString()
         // 字数只统计非空白 Unicode 码点，正文扫描放到后台，旧结果不得覆盖更新后的输入。
         lifecycleScope.launch {
-            val count=withContext(Dispatchers.Default){(title+body).codePoints().filter { !Character.isWhitespace(it) }.count().toInt()}
+            val count=withContext(Dispatchers.Default){NoteText.count(title)+NoteText.count(body)}
             if(title!=binding.noteTitle.text.toString()||body!=binding.editor.text.toString())return@launch
             binding.noteMetadata.text=java.text.SimpleDateFormat("M月d日 HH:mm",java.util.Locale.SIMPLIFIED_CHINESE).format(java.util.Date(model.draftUpdated))+"  |  "+getString(R.string.ui_note_words,count)
         }

@@ -2,6 +2,19 @@ package com.newspaper.helper
 
 import java.security.MessageDigest
 
+internal object NoteText {
+    // 不依赖 API 24 的 String.codePoints；表情按完整码点统计，空白不计入字数。
+    fun count(value:String):Int {
+        var count=0;var offset=0
+        while(offset<value.length) {
+            val point=Character.codePointAt(value,offset)
+            if(!Character.isWhitespace(point)&&!Character.isSpaceChar(point))count++
+            offset+=Character.charCount(point)
+        }
+        return count
+    }
+}
+
 enum class Paper(val label: String, val subtitle: String, val colors: IntArray) {
     STUDY("学习时报", "中共中央党校主办", intArrayOf(0xff1a5276.toInt(), 0xff2c6a96.toInt())),
     ORGANIZATION("组织人事报", "中国人事报刊社", intArrayOf(0xff6b3a2e.toInt(), 0xff8b5545.toInt())),

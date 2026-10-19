@@ -95,7 +95,7 @@ input[type=range]::-webkit-slider-thumb{transition:transform .15s}input[type=ran
 .stagger .paper,.stagger .note{animation:rise .45s var(--ease) both;animation-delay:calc(var(--i,0)*35ms)}
 .morph{position:absolute;z-index:9;pointer-events:none;overflow:hidden}
 .toast{position:absolute;left:50%;bottom:calc(32px + env(safe-area-inset-bottom,0px));z-index:10;transform:translate(-50%,16px);opacity:0;background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:99px;font-size:13px;pointer-events:none;transition:opacity .2s,transform .3s var(--ease)}.toast.show{opacity:1;transform:translate(-50%,0)}
-@media(prefers-reduced-motion:reduce){*,*:before,*:after{transition-duration:.01ms!important}}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{transition-duration:.01ms!important;transition-delay:0s!important}}
 </style>
 </head>
 <body>

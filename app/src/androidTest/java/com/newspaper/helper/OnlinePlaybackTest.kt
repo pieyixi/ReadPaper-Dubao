@@ -66,7 +66,7 @@ class OnlinePlaybackTest {
             scenario.onActivity {it.findViewById<android.widget.EditText>(R.id.editor).append("\n编辑后旧声音必须停止。")}
             waitFor("Editing did not cancel old audio") {main {player.mediaItemCount==0}&&PlaybackSignals.state.value.article.isEmpty()}
             waitFor("Edited note was not saved") {runBlocking {ReaderDatabase.get(app).reader().note(checkNotNull(noteId))?.content?.endsWith("编辑后旧声音必须停止。")==true}}
-            assertFalse(File(path).exists())
+            waitFor("Stopped private audio was not removed") {!File(path).exists()}
             File(evidence,"pasted-playback.json").writeText(jsonCodec.toJson(mapOf("online_mp3" to true,"private_cache" to true,"pause_resume" to true,"editing_cancels_old_audio" to true,"local_note_saved" to true)))
             shell("mkdir -p /sdcard/Download/dubao-online-evidence")
             shell("cp -r /sdcard/Android/data/com.newspaper.helper/files/online-evidence/. /sdcard/Download/dubao-online-evidence/")
