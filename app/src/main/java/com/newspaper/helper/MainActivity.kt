@@ -184,11 +184,12 @@ class MainActivity : AppCompatActivity() {
                 launch { while(true) { chrome.updateProgress(); kotlinx.coroutines.delay(500) } }
             }
         }
-        if(intent?.action==ReadAloudService.OPEN_PLAYING)openPlaying()
+        if(savedInstanceState==null && intent?.action==ReadAloudService.OPEN_PLAYING)openPlaying()
     }
     override fun onNewIntent(intent:Intent) {
-        super.onNewIntent(intent);setIntent(intent)
-        if(intent.action==ReadAloudService.OPEN_PLAYING)openPlaying()
+        super.onNewIntent(intent)
+        // 通知只请求一次导航，保留 Activity 原始启动 Intent；重建时由已保存的路由恢复。
+        if(intent.action==ReadAloudService.OPEN_PLAYING)openPlaying() else setIntent(intent)
     }
     private fun playingRoute(playback:PlaybackStatus):Route? {
         if(playback.article.isBlank())return null
@@ -198,7 +199,6 @@ class MainActivity : AppCompatActivity() {
     private fun targetKey(route:Route)=if(route.page==Page.CUSTOM)"note:${route.noteId}" else route.story?.url
     private fun openPlaying() {
         // 只读取当前服务状态，不把建立通知时的旧篇目固化在 PendingIntent 中。
-        intent?.takeIf {it.action==ReadAloudService.OPEN_PLAYING}?.action=null
         openPlayingJob?.cancel()
         openPlayingJob=lifecycleScope.launch {
             model.initialized.await()
