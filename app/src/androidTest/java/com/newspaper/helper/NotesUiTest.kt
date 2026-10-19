@@ -39,16 +39,19 @@ class NotesUiTest {
         val prefix="notes-ui-${System.nanoTime()}-";val ids=(0..9).map {"$prefix$it"}
         runBlocking {
             store.route(jsonCodec.toJson(Route()));store.appearance(0,2,2)
-            ids.forEachIndexed {index,id->dao.saveNote(PastedNote(id,"便签标题 ${index+1}","原文第一段。\n保留完整正文，便于继续阅读。",updated=System.currentTimeMillis()+10000-index))}
+            val timestamp=System.currentTimeMillis()+10000
+            ids.forEachIndexed {index,id->dao.saveNote(PastedNote(id,"便签标题 ${index+1}","原文第一段。\n保留完整正文，便于继续阅读。",updated=timestamp-index))}
         }
         try {ActivityScenario.launch(MainActivity::class.java).use {scenario ->
             fun model(block:(ReaderViewModel)->Unit){scenario.onActivity {block(ViewModelProvider(it)[ReaderViewModel::class.java])}}
             fun visible(id:Int):Boolean {var result=false;scenario.onActivity {result=it.findViewById<View>(id).isShown};return result}
             onView(withId(R.id.paste)).perform(click())
             waitFor("note grid missing"){visible(R.id.noteList)&&visible(R.id.newNote)}
+            waitFor("note previews did not load"){var loaded=false;model {loaded=it.screen.value.notes.any {n->n.id==ids[0]}};loaded}
             var fabY=0f
             scenario.onActivity {fabY=it.findViewById<View>(R.id.newNote).y;it.findViewById<RecyclerView>(R.id.noteList).scrollToPosition(9)}
             scenario.onActivity {assertEquals(fabY,it.findViewById<View>(R.id.newNote).y);it.findViewById<RecyclerView>(R.id.noteList).scrollToPosition(0)}
+            waitFor("first note was not laid out after returning to top"){var visible=false;scenario.onActivity {visible=it.window.decorView.findViewWithTag<View>("note-${ids[0]}")?.isShown==true};visible}
             shot("list")
             onView(withTagValue(`is`("note-${ids[0]}"))).perform(longClick())
             waitFor("long press did not select"){var ok=false;model {ok=it.screen.value.selecting&&it.screen.value.selected==setOf(ids[0])};ok}
