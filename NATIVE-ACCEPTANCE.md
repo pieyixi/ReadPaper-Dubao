@@ -1,5 +1,7 @@
 # 原生读报与语音验收记录
 
+本文件以下保留 2.0.0 原生迁移的历史证据。2.0.1 云扬在线语音的当前实现、构建与验证状态见 [SPEECH-INTEGRATION.md](SPEECH-INTEGRATION.md)，不能把旧版设备测试直接当作新版通过。
+
 日期：2026-10-18。开发分支：`codex/native-reader-tts`；包名 `com.newspaper.helper`，2.0.0 / versionCode 3。所有安装、构建与测试在 Codex Cloud 完成，未使用用户 Windows 编译环境。
 
 ## 已实现

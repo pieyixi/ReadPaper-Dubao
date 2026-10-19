@@ -1,13 +1,13 @@
 # Codex Cloud 设置
 
-当前开发分支：`codex/native-reader-tts`。
+当前语音改进分支：`codex/free-online-speech`。
 
-本地最新五来源版本已保存于提交 `9daff92`。此分支从远程 main 创建，保留了本地全部 13 个变动文件。不要重新从旧版四报覆盖当前源码。
+本分支基于 2.0.0 原生版本 `96f9f45`，接入免费云扬在线语音并保留粘贴文本的默认离线朗读。原生迁移历史分支为 `codex/native-reader-tts`。本轮实现与实际验证状态见 `SPEECH-INTEGRATION.md`，不要从旧版四报或 WebView 实现覆盖当前源码。
 
 ## 用户只需要完成的操作
 
 1. 登录 Codex 网页，打开“环境 / Environments”，创建环境。
-2. 仓库选择 `pieyixi/ReadPaper-Dubao`；若有分支选项，选择 `codex/native-reader-tts`。
+2. 仓库选择 `pieyixi/ReadPaper-Dubao`；若有分支选项，选择 `codex/free-online-speech`。
 3. 如果看到“安装脚本 / Setup script / Install script”，填入：
 
    ```bash
@@ -19,7 +19,7 @@
 
 若界面先进入环境设置对话，可直接发送：
 
-> 使用 pieyixi/ReadPaper-Dubao 的 codex/native-reader-tts 分支。读取 CLOUD-SETUP.md 和 CLOUD-TASK.md。只在云端安装 JDK 17、Android SDK 与 Gradle；先运行 bash scripts/cloud-setup.sh，再验证 bash scripts/cloud-build.sh debug。准备好并发布环境，供后续原生读报和语音功能开发。不要在用户电脑下载编译环境。
+> 使用 pieyixi/ReadPaper-Dubao 的 codex/free-online-speech 分支。读取 CLOUD-SETUP.md、CLOUD-TASK.md 和 SPEECH-INTEGRATION.md。只在云端安装 JDK 17、Android SDK 与 Gradle；先运行 bash scripts/cloud-setup.sh，再验证 bash scripts/cloud-build.sh debug。准备好并发布环境，供后续原生读报和语音功能开发。不要在用户电脑下载编译环境。
 
 不要把 `release.jks` 上传到公开代码仓库。环境准备和 Debug 检查不依赖 Release 私钥。
 
@@ -49,8 +49,7 @@ bash scripts/cloud-build.sh release
 
 ## 当前真实状态
 
-- GitHub 最新本地成果已同步到开发分支。
-- 云端安装/构建入口与完整开发任务已准备。
-- 当前账号通过 Codex CLI 查询到的云环境列表为空，需先在产品界面创建并发布环境。
-- 本地未执行 SDK 安装、Gradle 构建或模拟器运行。
-- 原生迁移、TTS 与手机验收尚未完成，不能将准备工作标为产品完成。
+- 功能代码已同步到 `codex/free-online-speech`；本轮不合并默认分支。
+- 除 Codex Cloud 安装/构建入口外，仓库已提供 `Android build and speech checks` GitHub Actions，可在标准 Ubuntu 云端运行器构建和检查。使用 Actions 不依赖本地 CLI 发现 Codex Cloud 环境。
+- 本地未执行 SDK 安装、Gradle 构建或模拟器运行；只取回 APK 和检查证据。
+- 原生迁移历史证据见 `NATIVE-ACCEPTANCE.md`，本轮在线语音证据见 `SPEECH-INTEGRATION.md`。构建、JVM、模拟器、真机和听感分别记录。
