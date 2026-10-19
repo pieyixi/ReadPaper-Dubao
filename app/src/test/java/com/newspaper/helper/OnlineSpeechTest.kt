@@ -17,8 +17,23 @@ import java.io.File
 import java.nio.ByteBuffer
 import java.nio.file.Files
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.CopyOnWriteArrayList
 
 class OnlineSpeechTest {
+    private val mockSockets=CopyOnWriteArrayList<WebSocket>()
+    private open inner class ServerListener:WebSocketListener() {
+        override fun onOpen(socket:WebSocket,response:Response) { mockSockets+=socket }
+        override fun onClosing(socket:WebSocket,code:Int,reason:String) { socket.close(code,reason) }
+    }
+    private suspend fun withMockServer(block:suspend (okhttp3.mockwebserver.MockWebServer)->Unit) {
+        okhttp3.mockwebserver.MockWebServer().use { server ->
+            try { block(server) }
+            finally {
+                // 测试端显式关闭升级后的连接，避免 MockWebServer 关闭队列与客户端取消竞态。
+                mockSockets.forEach { it.cancel() };mockSockets.clear()
+            }
+        }
+    }
     private fun output()=File(Files.createTempDirectory("speech-test").toFile(),"audio.mp3")
     private fun engine(server:okhttp3.mockwebserver.MockWebServer)=EdgeSpeechEngine(endpoint=server.url("/speech"),retryDelayMs=0,attemptTimeoutMs=3000)
     private fun frame(audio:ByteArray):okio.ByteString {
@@ -26,7 +41,7 @@ class OnlineSpeechTest {
         return ByteBuffer.allocate(2+headers.size+audio.size).putShort(headers.size.toShort()).put(headers).put(audio).array().toByteString()
     }
     private val audio="ID3".toByteArray()+ByteArray(600) { (it%255).toByte() }
-    private fun success()=MockResponse().withWebSocketUpgrade(object:WebSocketListener() {
+    private fun success()=MockResponse().withWebSocketUpgrade(object:ServerListener() {
         override fun onMessage(socket:WebSocket,text:String) {
             if(text.contains("Path:ssml")) { socket.send(frame(audio));socket.send("Path:turn.end\r\n\r\n") }
         }
@@ -49,7 +64,7 @@ class OnlineSpeechTest {
         assertTrue(runCatching { EdgeSpeechEngine.audioPayload(ByteBuffer.allocate(2+bad.size+1).putShort(bad.size.toShort()).put(bad).put(1).array()) }.isFailure)
     }
     @Test fun handshakeAndAudioAreDeliveredWithoutReadingUserCredentials()=runBlocking {
-        okhttp3.mockwebserver.MockWebServer().use { server ->
+        withMockServer { server ->
             server.enqueue(success())
             val engine=engine(server);val file=output()
             try {
@@ -62,7 +77,7 @@ class OnlineSpeechTest {
         }
     }
     @Test fun transientServerFailureRetriesOnce()=runBlocking {
-        okhttp3.mockwebserver.MockWebServer().use { server ->
+        withMockServer { server ->
             server.enqueue(MockResponse().setResponseCode(503));server.enqueue(success())
             val engine=engine(server);val file=output()
             try { engine.synthesize("重试。",file);assertTrue(file.isFile);assertEquals(2,server.requestCount) }
@@ -70,7 +85,7 @@ class OnlineSpeechTest {
         }
     }
     @Test fun rateLimitWithLongRetryAfterDoesNotHammerService()=runBlocking {
-        okhttp3.mockwebserver.MockWebServer().use { server ->
+        withMockServer { server ->
             server.enqueue(MockResponse().setResponseCode(429).setHeader("Retry-After","60"))
             val engine=engine(server);val file=output()
             try {
@@ -80,8 +95,8 @@ class OnlineSpeechTest {
         }
     }
     @Test fun emptyAudioFailsWithoutPublishingAFile()=runBlocking {
-        okhttp3.mockwebserver.MockWebServer().use { server ->
-            repeat(2) { server.enqueue(MockResponse().withWebSocketUpgrade(object:WebSocketListener() {
+        withMockServer { server ->
+            repeat(2) { server.enqueue(MockResponse().withWebSocketUpgrade(object:ServerListener() {
                 override fun onMessage(socket:WebSocket,text:String) { if(text.contains("Path:ssml")) socket.send("Path:turn.end\r\n\r\n") }
             })) }
             val engine=engine(server);val file=output()
@@ -90,9 +105,9 @@ class OnlineSpeechTest {
         }
     }
     @Test fun cancellationClosesOldRequestAndNextTextStillSynthesizes()=runBlocking {
-        okhttp3.mockwebserver.MockWebServer().use { server ->
+        withMockServer { server ->
             val started=CompletableDeferred<Unit>()
-            server.enqueue(MockResponse().withWebSocketUpgrade(object:WebSocketListener() {
+            server.enqueue(MockResponse().withWebSocketUpgrade(object:ServerListener() {
                 override fun onMessage(socket:WebSocket,text:String) { if(text.contains("Path:ssml")) started.complete(Unit) }
             }));server.enqueue(success())
             val engine=engine(server);val first=output();val second=output()
