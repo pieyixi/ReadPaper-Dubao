@@ -5,6 +5,7 @@ import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import java.util.Locale
 import kotlin.coroutines.resume
@@ -25,7 +26,7 @@ class AndroidSpeechEngine(context: Context) : SpeechEngine {
     private var selected: android.speech.tts.Voice? = null
     override val cacheIdentity get() = "system-offline-v2|${tts.defaultEngine}|${selected?.name}|rate=1|pitch=1"
     override suspend fun prepare(text: String) {
-        if (initialized.await() != TextToSpeech.SUCCESS) throw VoiceUnavailable()
+        if (withTimeoutOrNull(15000) { initialized.await() } != TextToSpeech.SUCCESS) throw VoiceUnavailable()
         val locale = if (text.any { it.code in 0x3400..0x9fff }) Locale.SIMPLIFIED_CHINESE else Locale.US
         if (tts.setLanguage(locale) < TextToSpeech.LANG_AVAILABLE) throw VoiceUnavailable()
         // 只使用已安装的离线音色，避免自定义文本被系统的网络音色上传。

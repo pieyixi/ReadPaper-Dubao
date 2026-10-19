@@ -30,7 +30,7 @@ class OnlineSpeechTest {
             try { block(server) }
             finally {
                 // 测试端显式关闭升级后的连接，避免 MockWebServer 关闭队列与客户端取消竞态。
-                mockSockets.forEach { it.cancel() };mockSockets.clear()
+                mockSockets.forEach { it.close(1000,null) };mockSockets.clear()
             }
         }
     }
