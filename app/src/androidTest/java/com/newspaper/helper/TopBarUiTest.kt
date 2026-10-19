@@ -5,9 +5,14 @@ import android.view.View
 import android.widget.EditText
 import androidx.lifecycle.ViewModelProvider
 import androidx.test.core.app.ActivityScenario
+import androidx.test.espresso.Espresso.onView
+import androidx.test.espresso.action.ViewActions.click as tap
+import androidx.test.espresso.action.ViewActions.swipeLeft
+import androidx.test.espresso.matcher.ViewMatchers.withContentDescription
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.first
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -65,6 +70,19 @@ class TopBarUiTest {
                 scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
                 assertFalse(visible(R.id.sheet)); assertTrue(visible(R.id.paste))
             }
+            // 使用实际触摸手势与选项点击，检查新设置面板确实保存设置。
+            click(R.id.settings)
+            onView(withContentDescription(app.getString(R.string.ui_font))).perform(swipeLeft())
+            waitFor("Font gesture was not saved") { runBlocking { store.flow.first().font==0 } }
+            onView(withContentDescription(app.getString(R.string.ui_wider))).perform(tap())
+            waitFor("Line choice was not saved") { runBlocking { store.flow.first().line==3 } }
+            onView(withContentDescription(app.getString(R.string.ui_day))).perform(tap())
+            waitFor("Theme choice was not saved") { runBlocking { store.flow.first().theme==0 } }
+            click(R.id.dismissPanel)
+            scenario.recreate()
+            waitFor("Home actions lost after recreation") { visible(R.id.paste) && visible(R.id.settings) }
+            assertEquals(0,runBlocking { store.flow.first().font })
+            assertEquals(3,runBlocking { store.flow.first().line })
             // 日期、年份、期号、目录四种中间页在加载中和返回后均不得显示功能胶囊。
             for(page in listOf(Page.CALENDAR,Page.YEARS,Page.ISSUES,Page.STORIES)) {
                 navigate(Route(page,Paper.QIUSHI,label="2026"))

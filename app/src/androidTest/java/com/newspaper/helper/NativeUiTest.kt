@@ -42,7 +42,11 @@ class NativeUiTest {
         instrumentation.waitForIdleSync()
         val bitmap=instrumentation.uiAutomation.takeScreenshot()
         val directory=File(app.getExternalFilesDir(null),"evidence").apply { mkdirs() }
-        File(directory,name+".png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG,100,it) }
+        val file=File(directory,name+".png")
+        file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG,100,it) }
+        // 各测试类执行顺序不固定，截图生成后立即导出，避免随后卸载丢失证据。
+        val export="mkdir -p /sdcard/Download/dubao-topbar-evidence; cp '${file.absolutePath}' /sdcard/Download/dubao-topbar-evidence/"
+        android.os.ParcelFileDescriptor.AutoCloseInputStream(instrumentation.uiAutomation.executeShellCommand(export)).bufferedReader().use { it.readText() }
     }
     @Test fun homeCardsThreeThemesAndNoBusinessWebView() {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->

@@ -175,7 +175,7 @@ internal class ReadingChrome(
                     for (i in -1..1) canvas.drawLine(width/2f-dp(12),height/2f+gap*i,width/2f+dp(12),height/2f+gap*i,paint)
                 }
             },LinearLayout.LayoutParams(dp(30),dp(28)))
-            option.addView(text(label(res),12f,if(selected) ink.accent else ink.muted))
+            option.addView(text(label(res),12f,if(selected) ink.accent else ink.muted).apply { gravity=Gravity.CENTER })
             options.addView(option,LinearLayout.LayoutParams(0,dp(68),1f).apply { if(index>0) leftMargin=dp(8) })
         }
         add(options,margin=4)
