@@ -27,7 +27,7 @@ case "$MODE" in
     : "${DUBAO_KEY_ALIAS:?Original Release key alias is required}"
     : "${DUBAO_KEYSTORE_FILE:?Original Release keystore file is required}"
     [[ -f "$DUBAO_KEYSTORE_FILE" ]] || { echo 'Release keystore file not found.' >&2; exit 1; }
-    TASKS=(assembleRelease)
+    TASKS=(assembleRelease lintRelease)
     ;;
   *) echo 'Usage: bash scripts/cloud-build.sh [debug|checks|release]' >&2; exit 2 ;;
 esac

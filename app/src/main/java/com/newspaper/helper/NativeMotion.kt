@@ -30,6 +30,7 @@ internal fun View.pressFeedback() {setOnTouchListener {_,event ->
 internal class NativeMotion(private val host:MainActivity,private val frame:FrameLayout) {
     private var ghost:View?=null
     private var animator:ValueAnimator?=null
+    private var entering:View?=null
     val expanding get()=ghost!=null
     fun expand(source:View,color:Int) {
         cancel()
@@ -57,10 +58,12 @@ internal class NativeMotion(private val host:MainActivity,private val frame:Fram
         }
     }
     fun enter(view:View,back:Boolean) {
-        view.animate().cancel();view.alpha=1f;view.translationX=0f
+        cancelEntry()
         if(!host.motionEnabled() || expanding)return
+        entering=view
         view.alpha=0f;view.translationX=host.dp(if(back)-22 else 22).toFloat()
         view.animate().alpha(1f).translationX(0f).setDuration(220).setInterpolator(PathInterpolator(.2f,.8f,.2f,1f)).start()
     }
-    fun cancel(){animator?.cancel();animator=null;ghost?.let {frame.removeView(it)};ghost=null}
+    fun cancelEntry(){entering?.let {it.animate().cancel();it.alpha=1f;it.translationX=0f};entering=null}
+    fun cancel(){cancelEntry();animator?.cancel();animator=null;ghost?.let {frame.removeView(it)};ghost=null}
 }

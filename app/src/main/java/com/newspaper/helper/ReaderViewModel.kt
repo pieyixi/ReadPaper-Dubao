@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import java.time.YearMonth
 
@@ -25,11 +26,16 @@ data class Screen(val route: Route = Route(), val loading: Boolean = false, val 
 class ReaderViewModel(application: Application, private val saved: SavedStateHandle) : AndroidViewModel(application) {
     val repository = ArticleRepository(application)
     private val store = SettingsStore(application)
-    private val mutable = MutableStateFlow(Screen())
+    private val mutable = MutableStateFlow(Screen(loading=true))
     val screen = mutable.asStateFlow()
     private val appearance = MutableStateFlow(ReaderSettings())
     val settings = appearance.asStateFlow()
     private var request: Job? = null
+    private var navigationRevision=0L
+    // 仅缓存当前会话的完整目录，返回不必重走网络/加载占位；重试会丢弃该页缓存。
+    private val directories=object:LinkedHashMap<Route,Screen>(8,.75f,true) {
+        override fun removeEldestEntry(eldest:MutableMap.MutableEntry<Route,Screen>?)=size>8
+    }
     private val stack = mutableListOf<Route>()
     var draft: String = ""
         private set
@@ -67,15 +73,21 @@ class ReaderViewModel(application: Application, private val saved: SavedStateHan
         saved["route"] = jsonCodec.toJson(route)
         saved["stack"] = ArrayList(stack.map(jsonCodec::toJson))
         request?.cancel()
+        val revision=++navigationRevision
         draftReady=false
         if(route.page==Page.CUSTOM) { draft="";draftTitle="";draftUpdated=System.currentTimeMillis();draftCreated=draftUpdated;draftExists=false;draftPinned=false }
-        mutable.value = Screen(route, loading = route.page != Page.HOME)
+        val cached=directories[route]
+        mutable.value = cached ?: Screen(route, loading = route.page != Page.HOME)
         readingPosition = null
         request = viewModelScope.launch {
             if (route.page != Page.CUSTOM) store.route(jsonCodec.toJson(route))
             try {
+                if(cached!=null) {if(route.page==Page.STORIES)listForQueue=cached.stories;return@launch}
                 if(route.page==Page.NOTES) {
-                    repository.dao.notes().collect { notes -> mutable.value=mutable.value.copy(route=route,loading=false,notes=notes) }
+                    repository.dao.notes().collect { notes ->
+                        coroutineContext.ensureActive()
+                        if(revision==navigationRevision)mutable.value=mutable.value.copy(route=route,loading=false,notes=notes)
+                    }
                     return@launch
                 }
                 val next = when (route.page) {
@@ -92,21 +104,28 @@ class ReaderViewModel(application: Application, private val saved: SavedStateHan
                     Page.YEARS -> Screen(route, issues = repository.sources.years())
                     Page.ISSUES -> Screen(route, issues = repository.sources.qiushiIssues(route.label, route.url.ifBlank { null }))
                     Page.STORIES -> repository.sources.stories(route.paper, Issue(route.label, route.url, route.date)).let {
+                        coroutineContext.ensureActive()
                         listForQueue = it.items
                         Screen(route, partial = !it.complete, stories = it.items)
                     }
                     Page.READER -> {
                         val article = repository.article(checkNotNull(route.story))
-                        readingPosition = repository.dao.position(article.story.url)
+                        val position=repository.dao.position(article.story.url)
+                        coroutineContext.ensureActive()
+                        readingPosition = position
                         Screen(route, article = article)
                     }
                 }
-                mutable.value = next
+                coroutineContext.ensureActive()
+                if(revision==navigationRevision) {
+                    if(route.page in listOf(Page.CALENDAR,Page.YEARS,Page.ISSUES,Page.STORIES) && !next.partial)directories[route]=next
+                    mutable.value = next
+                }
             } catch (e: CancellationException) { throw e }
-            catch (e: Exception) { android.util.Log.w("Reader", "Load failed ${route.url}", e); mutable.value = Screen(route, error = true) }
+            catch (e: Exception) { android.util.Log.w("Reader", "Load failed ${route.url}", e); if(revision==navigationRevision)mutable.value = Screen(route, error = true) }
         }
     }
-    fun retry() = navigate(screen.value.route, false)
+    fun retry() {directories.remove(screen.value.route);navigate(screen.value.route, false)}
     fun back(): Boolean {
         if(screen.value.selecting) { selection();return true }
         if (stack.isNotEmpty()) { navigate(stack.removeAt(stack.lastIndex), false); return true }

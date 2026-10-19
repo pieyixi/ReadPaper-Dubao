@@ -17,6 +17,7 @@ import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
+import androidx.core.view.doOnPreDraw
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -47,6 +48,10 @@ class MainActivity : AppCompatActivity() {
     private var bindingDraft=false
     private var visualRoute:Route?=null
     private var returning=false
+    private var enterRoute:Route?=null
+    private var enterBack=false
+    private var renderRevision=0L
+    private val directoryScroll=mutableMapOf<Route,Pair<Int,Int>>()
     private var lastNoteError=false
     private var speechRevision=0L
     private var pendingSpeech: SpeechRequest? = null
@@ -69,6 +74,8 @@ class MainActivity : AppCompatActivity() {
         rows = NativeRows(this, ::rowClick)
         binding.list.layoutManager = LinearLayoutManager(this)
         binding.list.adapter = rows
+        // 页面共用一个列表，行增删动画会把上一页的 holder 留在下一页；便签的重排动画独立保留。
+        binding.list.itemAnimator = null
         binding.list.addOnScrollListener(object : androidx.recyclerview.widget.RecyclerView.OnScrollListener() {
             override fun onScrollStateChanged(recyclerView: androidx.recyclerview.widget.RecyclerView, newState: Int) {
                 if (newState == androidx.recyclerview.widget.RecyclerView.SCROLL_STATE_IDLE && !restoring && current.article != null) {
@@ -158,6 +165,7 @@ class MainActivity : AppCompatActivity() {
         (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(binding.editor.windowToken, 0)
         returning=true
         if (!model.back()) finish()
+        if(model.screen.value.route==current.route)returning=false
     }
     fun expandFrom(source:View,color:Int=ChromeColors.forTheme(appearance.theme).accent) {motion.expand(source,color)}
     fun deletedNotes(ids:Set<String>) {if(status.noteId in ids)command("stop")}
@@ -233,6 +241,25 @@ class MainActivity : AppCompatActivity() {
     }
     private fun render() {
         val route = current.route
+        val revision=++renderRevision
+        val changedRoute=visualRoute!=route
+        if(changedRoute) {
+            speechRevision++
+            motion.cancelEntry()
+            restoring=true
+            lastRoute=null
+            visualRoute?.takeIf {it.page in listOf(Page.CALENDAR,Page.YEARS,Page.ISSUES,Page.STORIES)}?.let {
+                val lm=binding.list.layoutManager as LinearLayoutManager
+                val first=lm.findFirstVisibleItemPosition()
+                if(first>=0)directoryScroll[it]=first to (lm.findViewByPosition(first)?.top ?: 0)
+            }
+            visualRoute=route;enterRoute=route;enterBack=returning;returning=false
+            // submitList(null) 同步清空并使尚未完成的旧 diff 失效，新页不能先绘制旧行。
+            rows.submitList(null)
+            binding.list.stopScroll()
+            binding.list.scrollToPosition(0)
+            toolbarScrolled(false)
+        }
         binding.back.isVisible = route.page != Page.HOME
         chrome.route(route)
         binding.title.text = when (route.page) {
@@ -255,11 +282,16 @@ class MainActivity : AppCompatActivity() {
         notes.render(current,appearance)
         if(current.noteError && !lastNoteError)android.widget.Toast.makeText(this,R.string.ui_error,android.widget.Toast.LENGTH_LONG).show()
         lastNoteError=current.noteError
-        if(visualRoute!=route) {
-            speechRevision++
-            visualRoute=route;toolbarScrolled(false)
-            motion.enter(if(route.page==Page.CUSTOM)binding.editorPanel else if(route.page==Page.NOTES)binding.notesPanel else binding.list,returning)
-            returning=false
+        fun enterWhenReady() {
+            if(current.loading || enterRoute!=route || current.route!=route || revision!=renderRevision)return
+            val view=if(route.page==Page.CUSTOM)binding.editorPanel else if(route.page==Page.NOTES)binding.notesPanel else binding.list
+            // 新列表完成布局后才做入场，加载占位和旧列表均不参与页面动画。
+            view.doOnPreDraw {
+                if(enterRoute==route && current.route==route && revision==renderRevision) {
+                    enterRoute=null
+                    motion.enter(view,enterBack)
+                }
+            }
         }
         val content = mutableListOf<NativeRow>()
         when {
@@ -292,6 +324,7 @@ class MainActivity : AppCompatActivity() {
         if (content.isEmpty() && route.page !in listOf(Page.CUSTOM,Page.NOTES)) content += NativeRow("empty", RowKind.MESSAGE, getString(R.string.ui_empty))
         rows.month = route.month
         rows.submitList(content) {
+            if(current.route!=route || revision!=renderRevision)return@submitList
             rows.highlight = if (status.article == current.article?.story?.url) status.block else ""
             if (current.route == route && lastRoute != route && !current.loading) {
                 lastRoute = route
@@ -300,8 +333,13 @@ class MainActivity : AppCompatActivity() {
                     restoring = true
                     (binding.list.layoutManager as LinearLayoutManager).scrollToPositionWithOffset(position.block, position.offset)
                     binding.list.post { restoring = false }
-                } else binding.list.scrollToPosition(0)
+                } else {
+                    val scroll=directoryScroll[route]
+                    (binding.list.layoutManager as LinearLayoutManager).scrollToPositionWithOffset(scroll?.first ?: 0,scroll?.second ?: 0)
+                }
+                binding.list.post {if(current.route==route)restoring=false}
             }
+            enterWhenReady()
         }
     }
     private fun rowClick(row: NativeRow) {

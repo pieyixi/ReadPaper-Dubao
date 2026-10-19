@@ -1,7 +1,7 @@
 name: Android build and speech checks
 on:
   push:
-    branches: [codex/free-online-speech, codex/topbar-controls]
+    branches: [main]
   pull_request:
   workflow_dispatch:
 permissions:
@@ -30,6 +30,16 @@ jobs:
         run: python3 scripts/audit-ui.py
       - name: Compile, unit tests and lint
         run: bash ./gradlew --no-daemon --console=plain assembleDebug testDebugUnitTest lintDebug
+      - name: Build original-key signed Release
+        if: github.event_name != 'pull_request'
+        env:
+          DUBAO_KEYSTORE_BASE64: ${{ secrets.DUBAO_KEYSTORE_BASE64 }}
+          DUBAO_STORE_PASSWORD: ${{ secrets.DUBAO_STORE_PASSWORD }}
+          DUBAO_KEY_PASSWORD: ${{ secrets.DUBAO_KEY_PASSWORD }}
+          DUBAO_KEY_ALIAS: ${{ secrets.DUBAO_KEY_ALIAS }}
+        run: |
+          bash scripts/cloud-build.sh release
+          python3 scripts/verify-release.py app/build/outputs/apk/release/app-release.apk
       - name: Real online speech protocol check
         id: online
         continue-on-error: true
@@ -60,19 +70,19 @@ jobs:
             adb shell wm density 540
             adb shell wm size
             adb shell wm density
-            bash ./gradlew --no-daemon --console=plain connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.newspaper.helper.NativeUiTest,com.newspaper.helper.TopBarUiTest,com.newspaper.helper.NotesUiTest -Pandroid.testInstrumentationRunnerArguments.expectedWidth=320
+            bash ./gradlew --no-daemon --console=plain connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.newspaper.helper.NativeUiTest,com.newspaper.helper.TopBarUiTest,com.newspaper.helper.NotesUiTest,com.newspaper.helper.NavigationTransitionTest -Pandroid.testInstrumentationRunnerArguments.expectedWidth=320
             mkdir -p app/build/topbar-evidence/reports-320
             cp -r app/build/reports/androidTests/. app/build/topbar-evidence/reports-320/
             adb shell wm density 443
             adb shell wm size
             adb shell wm density
-            bash ./gradlew --no-daemon --console=plain connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.newspaper.helper.NativeUiTest,com.newspaper.helper.TopBarUiTest,com.newspaper.helper.NotesUiTest -Pandroid.testInstrumentationRunnerArguments.expectedWidth=390
+            bash ./gradlew --no-daemon --console=plain connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.newspaper.helper.NativeUiTest,com.newspaper.helper.TopBarUiTest,com.newspaper.helper.NotesUiTest,com.newspaper.helper.NavigationTransitionTest -Pandroid.testInstrumentationRunnerArguments.expectedWidth=390
             mkdir -p app/build/topbar-evidence/reports-390
             cp -r app/build/reports/androidTests/. app/build/topbar-evidence/reports-390/
             adb shell settings put global animator_duration_scale 1
             adb shell settings put global transition_animation_scale 1
             adb shell settings put global window_animation_scale 1
-            bash ./gradlew --no-daemon --console=plain connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.newspaper.helper.NotesUiTest -Pandroid.testInstrumentationRunnerArguments.expectedWidth=390
+            bash ./gradlew --no-daemon --console=plain connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.newspaper.helper.NotesUiTest,com.newspaper.helper.NavigationTransitionTest -Pandroid.testInstrumentationRunnerArguments.expectedWidth=390
             mkdir -p app/build/topbar-evidence/reports-motion
             cp -r app/build/reports/androidTests/. app/build/topbar-evidence/reports-motion/
             adb shell settings put global animator_duration_scale 0
@@ -80,11 +90,12 @@ jobs:
             adb shell settings put global window_animation_scale 0
             adb pull /sdcard/Download/dubao-topbar-evidence app/build/topbar-evidence/screenshots
             if [ '${{ steps.online.outcome }}' = 'success' ]; then bash ./gradlew --no-daemon --console=plain connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.newspaper.helper.OnlinePlaybackTest && adb pull /sdcard/Download/dubao-online-evidence app/build/speech-evidence/android; fi
+            if [ -f app/build/outputs/apk/release/app-release.apk ]; then bash scripts/release-smoke.sh; fi
       - name: Upload APK and validation evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: dubao-2.0.4-debug-${{ github.sha }}
+          name: dubao-2.0.0-validation-${{ github.sha }}
           retention-days: 3
           path: |
             app/build/outputs/apk/debug/*.apk
@@ -95,3 +106,15 @@ jobs:
             app/build/topbar-evidence/
             app/build/outputs/androidTest-results/
             app/build/test-results/testDebugUnitTest/
+            app/build/reports/lint-results-release.*
+            app/build/release-evidence/
+      - name: Upload verified Release APK
+        if: success() && github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dubao-2.0.0-release-${{ github.sha }}
+          retention-days: 7
+          path: |
+            app/build/outputs/apk/release/app-release.apk
+            app/build/release-evidence/verification.json
+          if-no-files-found: error

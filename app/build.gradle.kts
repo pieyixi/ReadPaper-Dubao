@@ -28,8 +28,8 @@ android {
         applicationId = "com.newspaper.helper"
         minSdk = 21
         targetSdk = 34
-        versionCode = 7
-        versionName = "2.0.4"
+        versionCode = 8
+        versionName = "2.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

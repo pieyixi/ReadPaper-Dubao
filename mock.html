@@ -204,6 +204,8 @@ const pop=el=>{if(!reduced())el.animate([{opacity:0,transform:'scale(.6) rotate(
 function toast(text){const t=$('toast');t.textContent=text;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),1300)}
 // 页面切换：前进从右、返回从左；网格卡片错峰入场
 function playMotion(){
+ // 复用内容容器前取消上一次页面动画，快速前进/返回不能把旧动画叠到新页。
+ content.getAnimations().forEach(a=>a.cancel());$('topTitle').getAnimations().forEach(a=>a.cancel());
  const m=motion;motion='fwd';
  content.querySelectorAll('.paper,.note').forEach((el,i)=>el.style.setProperty('--i',Math.min(i,10)));
  clearTimeout(stagTimer);content.classList.add('stagger');stagTimer=setTimeout(()=>content.classList.remove('stagger'),900);

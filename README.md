@@ -1,9 +1,9 @@
 # 读报
 
-当前开发版本 **2.0.4**：便签历史、标题/日期/字数、长按多选、置顶/删除、固定悬浮新建按钮、原文自然段循环与五挡倍速。`mock.html` 是界面预览基准，用户确认后同步 Kotlin 原生 View。报纸及自定义便签均优先使用免费云扬在线合成，朗读内容会发送至在线服务；便签保存在本机，私人音频独立缓存。云端构建和实际验证进度见 [NOTES-UPDATE.md](NOTES-UPDATE.md)。
+当前正式版本 **2.0.0**（versionCode 8），开发与发布统一在 **main**：包含此前调试阶段验证的便签历史、标题/日期/字数、长按多选、置顶/删除、固定悬浮新建按钮、原文自然段循环与五挡倍速。`mock.html` 是界面预览基准，用户确认后同步 Kotlin 原生 View。报纸及自定义便签均优先使用免费云扬在线合成，朗读内容会发送至在线服务；便签保存在本机，私人音频独立缓存。调试阶段的验证记录见 [NOTES-UPDATE.md](NOTES-UPDATE.md)，正式发布记录见 [RELEASE-2.0.0.md](RELEASE-2.0.0.md)。
 
 
-Kotlin 原生 Android 读报器，保留学习时报、组织人事报、人民日报、南方日报、求是五个来源。报纸和自定义便签默认使用免费的云扬在线自然语音。包名仍为 `com.newspaper.helper`，版本为 `2.0.4`（versionCode 7）。朗读倍速为 0.8、1、1.1、1.2、1.3 五挡，更新记录见 [SPEED-UPDATE.md](SPEED-UPDATE.md)。
+Kotlin 原生 Android 读报器，保留学习时报、组织人事报、人民日报、南方日报、求是五个来源。报纸和自定义便签默认使用免费的云扬在线自然语音。包名仍为 `com.newspaper.helper`。朗读倍速为 0.8、1、1.1、1.2、1.3 五挡，更新记录见 [SPEED-UPDATE.md](SPEED-UPDATE.md)。
 
 首页仅保留粘贴与设置，正文/粘贴页保留耳机朗读与设置；日期、年份、期号、目录不显示右侧功能按钮。底部播放条已移除，控制放入顶栏悬浮弹层。变更及验证记录见 [TOPBAR-UPDATE.md](TOPBAR-UPDATE.md)。
 
@@ -24,7 +24,7 @@ bash scripts/cloud-build.sh checks
 
 在同一个 checkout 中串行运行 Gradle，避免两个构建同时改写产物。Debug APK 为 `app/build/outputs/apk/debug/app-debug.apk`；lint 与 JVM 报告在 `app/build/reports/`。源码仓库不包含 APK、SDK、缓存或签名文件。
 
-也可使用仓库的 `Android build and speech checks` GitHub Actions：标准 Ubuntu 云端运行器负责 Debug 构建、单元测试、lint、文案审计，以及 API 28 模拟器的 320/390dp 原生界面检查；独立在线语音抽查成功后再运行真实播放检查。APK 与报告作为短期附件保存，不需要在用户电脑下载构建依赖。构建成功、外部接口可用、模拟器通过和人耳听音是不同结论。
+也可使用仓库的 `Android build and speech checks` GitHub Actions：推送 main 后，标准 Ubuntu 云端运行器负责单元测试、Debug/Release lint、文案审计、原密钥签名正式包，以及 API 28 模拟器的 320/390dp 原生界面检查；独立在线语音抽查成功后再运行真实播放检查。Debug 仅用于自动化设备测试，交付 APK 为校验过原始证书、2.0.0/versionCode 8、非 debuggable 的 Release，另实测正式包冷启动。APK 与报告作为短期附件保存，正式发行附件存放在 GitHub Release；无需在本机下载构建依赖。构建成功、外部接口可用、模拟器通过和人耳听音是不同结论。
 
 真实网站联网检查单独执行，避免离线测试依赖官网可用性：
 
