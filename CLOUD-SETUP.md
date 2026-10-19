@@ -1,6 +1,6 @@
 # Codex Cloud 设置
 
-当前界面改进分支：`codex/topbar-controls`；2.0.2 顶栏与朗读弹层详见 `TOPBAR-UPDATE.md`。免费在线语音基线分支为 `codex/free-online-speech`。
+当前界面改进分支：`codex/topbar-controls`；2.0.3 倍速调整见 `SPEED-UPDATE.md`，2.0.2 顶栏与朗读弹层详见 `TOPBAR-UPDATE.md`。免费在线语音基线分支为 `codex/free-online-speech`。
 
 本分支基于 2.0.0 原生版本 `96f9f45`，接入免费云扬在线语音并保留粘贴文本的默认离线朗读。原生迁移历史分支为 `codex/native-reader-tts`。本轮实现与实际验证状态见 `SPEECH-INTEGRATION.md`，不要从旧版四报或 WebView 实现覆盖当前源码。
 

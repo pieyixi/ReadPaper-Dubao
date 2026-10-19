@@ -1,6 +1,6 @@
 # 原生读报与语音：完整开发任务
 
-本文保留 2.0.0 原生迁移任务的范围与产品约束。后续 2.0.1 免费在线语音接入见 `SPEECH-INTEGRATION.md`。当前 2.0.2 顶栏与朗读弹层调整分支为 `codex/topbar-controls`，页面操作边界与证据见 `TOPBAR-UPDATE.md`。
+本文保留 2.0.0 原生迁移任务的范围与产品约束。后续 2.0.1 免费在线语音接入见 `SPEECH-INTEGRATION.md`。当前顶栏与朗读弹层分支为 `codex/topbar-controls`，页面操作边界与 2.0.2 证据见 `TOPBAR-UPDATE.md`；2.0.3 五挡倍速调整见 `SPEED-UPDATE.md`。
 
 ## 用户原始要求
 
