@@ -182,7 +182,7 @@ class MainActivity : AppCompatActivity() {
         binding.selectionHeading.setTextColor(p.text)
         binding.toolbar.setBackgroundColor(p.bg)
         binding.editor.textSize = floatArrayOf(15f,17f,19f,21f)[appearance.font]
-        binding.editor.setLineSpacing(0f,floatArrayOf(1.65f,1.85f,2.05f,2.25f)[appearance.line])
+        binding.editor.readerLineHeight(floatArrayOf(1.65f,1.85f,2.05f,2.25f)[appearance.line])
         binding.back.ink = p.muted; binding.paste.ink = p.muted
         window.statusBarColor = p.bg; window.navigationBarColor = p.bg
         if (Build.VERSION.SDK_INT >= 23) window.decorView.systemUiVisibility = if (appearance.theme == 1) 0 else View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR

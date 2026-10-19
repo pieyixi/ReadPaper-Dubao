@@ -152,10 +152,10 @@ class NativeRows(private val host: MainActivity, private val onClick: (NativeRow
                 val value=when(block.kind) { BlockKind.PARAGRAPH -> "\u3000\u3000${block.text}"; BlockKind.LIST -> "• ${block.text}"; else -> block.text }
                 if (block.kind == BlockKind.TABLE) {
                     val scroll=HorizontalScrollView(host)
-                    scroll.addView(host.text(value,font).apply { setLineSpacing(0f,line); setPadding(host.dp(8),host.dp(8),host.dp(8),host.dp(8)); typeface=Typeface.MONOSPACE })
+                    scroll.addView(host.text(value,font).apply { readerLineHeight(line); setPadding(host.dp(8),host.dp(8),host.dp(8),host.dp(8)); typeface=Typeface.MONOSPACE })
                     box.addView(scroll)
                 } else text(value,if(block.kind==BlockKind.CAPTION) 13f else font,if(block.kind in listOf(BlockKind.CAPTION,BlockKind.QUOTE)) p.muted else p.text,block.kind==BlockKind.TITLE,bottom=20).apply {
-                    setLineSpacing(0f,line)
+                    readerLineHeight(line)
                     if(Build.VERSION.SDK_INT>=29 && block.kind==BlockKind.PARAGRAPH) justificationMode=android.graphics.text.LineBreaker.JUSTIFICATION_MODE_INTER_WORD
                     if(block.kind==BlockKind.CAPTION) gravity=Gravity.CENTER
                     if(block.kind==BlockKind.QUOTE) { setBackgroundColor(p.card); setPadding(host.dp(12),host.dp(12),host.dp(12),host.dp(12)) }

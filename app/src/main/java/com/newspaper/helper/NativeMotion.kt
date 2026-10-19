@@ -11,6 +11,13 @@ import android.view.animation.PathInterpolator
 import android.widget.FrameLayout
 import androidx.core.graphics.ColorUtils
 
+/** 与 mock 的 font-size × line-height 对齐，不再把中文字体额外留白重复乘大。 */
+internal fun android.widget.TextView.readerLineHeight(multiplier:Float) {
+    includeFontPadding=false
+    val metrics=paint.fontMetricsInt
+    setLineSpacing((textSize*multiplier-(metrics.descent-metrics.ascent)).coerceAtLeast(0f),1f)
+}
+
 internal fun View.pressFeedback() {setOnTouchListener {_,event ->
     if(motionEnabled())when(event.actionMasked) {
         android.view.MotionEvent.ACTION_DOWN->animate().scaleX(.96f).scaleY(.96f).setDuration(80).start()

@@ -51,7 +51,9 @@ class GlyphView @JvmOverloads constructor(context:Context,attrs:AttributeSet?=nu
     override fun onDraw(canvas:Canvas) {
         super.onDraw(canvas)
         canvas.save();val density=resources.displayMetrics.density
-        canvas.translate(width/2f-12*density,height/2f-12*density);canvas.scale(density,density)
+        // 卡片上的置顶标记小于 24dp，也要完整缩放，不能裁掉路径两侧。
+        val size=minOf(24*density,width.toFloat(),height.toFloat())
+        canvas.translate((width-size)/2f,(height-size)/2f);canvas.scale(size/24f,size/24f)
         paint.color=ink;paint.strokeWidth=1.75f;paint.strokeCap=Paint.Cap.ROUND;paint.strokeJoin=Paint.Join.ROUND
         fun draw(g:Glyph,alpha:Float){if(alpha<=0)return;val icon=icons.getOrPut(g){checkNotNull(ContextCompat.getDrawable(context,checkNotNull(resourcesByGlyph[g]))).mutate()};icon.setTint(ink);icon.alpha=(255*alpha).toInt();icon.setBounds(0,0,24,24);icon.draw(canvas)}
         if(mix<1f)draw(old,1f-mix);draw(glyph,mix)
