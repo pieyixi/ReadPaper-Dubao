@@ -33,6 +33,7 @@ class NavigationTransitionTest {
         else -> emptyList()
     }
     private fun shot(name:String) {
+        Thread.sleep(250)
         ins.waitForIdleSync()
         val file=File(app.getExternalFilesDir(null),"navigation-$name.png")
         file.outputStream().use {ins.uiAutomation.takeScreenshot().compress(Bitmap.CompressFormat.PNG,100,it)}

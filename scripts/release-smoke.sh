@@ -8,6 +8,7 @@ adb install app/build/outputs/apk/release/app-release.apk
 adb logcat -c
 adb shell am force-stop com.newspaper.helper
 adb shell am start -W -n com.newspaper.helper/.MainActivity | tee "$EVIDENCE/cold-start.txt"
+grep -q 'Status: ok' "$EVIDENCE/cold-start.txt"
 sleep 5
 adb shell pidof com.newspaper.helper | tee "$EVIDENCE/process.txt"
 adb logcat -b crash -d > "$EVIDENCE/crash-log.txt"

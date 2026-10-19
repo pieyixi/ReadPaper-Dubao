@@ -32,9 +32,9 @@ class ReaderViewModel(application: Application, private val saved: SavedStateHan
     val settings = appearance.asStateFlow()
     private var request: Job? = null
     private var navigationRevision=0L
-    // 仅缓存当前会话的完整目录，返回不必重走网络/加载占位；重试会丢弃该页缓存。
-    private val directories=object:LinkedHashMap<Route,Screen>(8,.75f,true) {
-        override fun removeEldestEntry(eldest:MutableMap.MutableEntry<Route,Screen>?)=size>8
+    // 完整目录最多八页、五分钟，返回不必重走加载；到期及重试仍能获取官网新内容。
+    private val directories=object:LinkedHashMap<Route,Pair<Screen,Long>>(8,.75f,true) {
+        override fun removeEldestEntry(eldest:MutableMap.MutableEntry<Route,Pair<Screen,Long>>?)=size>8
     }
     private val stack = mutableListOf<Route>()
     var draft: String = ""
@@ -76,7 +76,7 @@ class ReaderViewModel(application: Application, private val saved: SavedStateHan
         val revision=++navigationRevision
         draftReady=false
         if(route.page==Page.CUSTOM) { draft="";draftTitle="";draftUpdated=System.currentTimeMillis();draftCreated=draftUpdated;draftExists=false;draftPinned=false }
-        val cached=directories[route]
+        val cached=directories[route]?.takeIf {android.os.SystemClock.elapsedRealtime()-it.second<300000}?.first
         mutable.value = cached ?: Screen(route, loading = route.page != Page.HOME)
         readingPosition = null
         request = viewModelScope.launch {
@@ -118,7 +118,7 @@ class ReaderViewModel(application: Application, private val saved: SavedStateHan
                 }
                 coroutineContext.ensureActive()
                 if(revision==navigationRevision) {
-                    if(route.page in listOf(Page.CALENDAR,Page.YEARS,Page.ISSUES,Page.STORIES) && !next.partial)directories[route]=next
+                    if(route.page in listOf(Page.CALENDAR,Page.YEARS,Page.ISSUES,Page.STORIES) && !next.partial)directories[route]=next to android.os.SystemClock.elapsedRealtime()
                     mutable.value = next
                 }
             } catch (e: CancellationException) { throw e }

@@ -117,11 +117,17 @@ class MainActivity : AppCompatActivity() {
                 false
             }
         }
-        ViewCompat.setOnApplyWindowInsetsListener(binding.root) {_,insets ->
-            val visible=insets.isVisible(WindowInsetsCompat.Type.ime())
-            if(keyboardVisible && !visible && current.route.page==Page.CUSTOM)finishNoteEditing()
+        binding.root.viewTreeObserver.addOnGlobalLayoutListener {
+            // 旧版 Android 的 Decor 会先消费传给内容区的 IME Insets，必须读取窗口根状态。
+            val insets=ViewCompat.getRootWindowInsets(binding.root)
+            val visible=if(insets!=null)insets.isVisible(WindowInsetsCompat.Type.ime()) else {
+                val visibleFrame=android.graphics.Rect()
+                window.decorView.getWindowVisibleDisplayFrame(visibleFrame)
+                window.decorView.rootView.height-visibleFrame.bottom>dp(120)
+            }
+            val wasVisible=keyboardVisible
             keyboardVisible=visible
-            insets
+            if(wasVisible && !visible && current.route.page==Page.CUSTOM)finishNoteEditing()
         }
         binding.editor.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
@@ -284,9 +290,10 @@ class MainActivity : AppCompatActivity() {
         if(changedRoute) {
             speechRevision++
             motion.cancelEntry()
+            val previousReady=!restoring && lastRoute==visualRoute
             restoring=true
             lastRoute=null
-            visualRoute?.takeIf {it.page in listOf(Page.CALENDAR,Page.YEARS,Page.ISSUES,Page.STORIES)}?.let {
+            visualRoute?.takeIf {previousReady && it.page in listOf(Page.CALENDAR,Page.YEARS,Page.ISSUES,Page.STORIES)}?.let {
                 val lm=binding.list.layoutManager as LinearLayoutManager
                 val first=lm.findFirstVisibleItemPosition()
                 if(first>=0)directoryScroll[it]=first to (lm.findViewByPosition(first)?.top ?: 0)
@@ -371,12 +378,11 @@ class MainActivity : AppCompatActivity() {
                 if (position != null && route.page == Page.READER) {
                     restoring = true
                     (binding.list.layoutManager as LinearLayoutManager).scrollToPositionWithOffset(position.block, position.offset)
-                    binding.list.post { restoring = false }
                 } else {
                     val scroll=directoryScroll[route]
                     (binding.list.layoutManager as LinearLayoutManager).scrollToPositionWithOffset(scroll?.first ?: 0,scroll?.second ?: 0)
                 }
-                binding.list.post {if(current.route==route)restoring=false}
+                binding.list.doOnPreDraw {if(current.route==route && lastRoute==route)restoring=false}
             }
             enterWhenReady()
         }
