@@ -81,7 +81,7 @@ class ReadAloudService : MediaSessionService() {
                 override fun onIsPlayingChanged(isPlaying: Boolean) { publish() }
                 override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) { if (!resetting) desiredPlay = playWhenReady; publish() }
                 override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                    if(resetting) return
+                    if(resetting || mediaItem==null) return
                     val discard = player.currentMediaItemIndex - 1
                     if (discard > 0) { baseSegment += discard; player.removeMediaItems(0, discard) }
                     publish(); fillAhead()
@@ -372,7 +372,8 @@ class ReadAloudService : MediaSessionService() {
     private fun stopReading() {
         persist(); work?.cancel(); work = null; engine.cancel(); generation++
         val privateFiles=if(custom) (0 until player.mediaItemCount).mapNotNull { player.getMediaItemAt(it).localConfiguration?.uri?.path } else emptyList()
-        player.stop(); player.clearMediaItems(); segments = emptyList(); article = null; queue.clear()
+        // 停止期间禁止清空媒体项的回调再次触发预取，避免旧稿在停止后重新入队。
+        resetPlayer(); segments = emptyList(); article = null; queue.clear()
         speechFailed=false;voiceMissing=false
         PlaybackSignals.mutable.value = PlaybackStatus()
         endPreparingIfEmpty()
@@ -389,6 +390,7 @@ class ReadAloudService : MediaSessionService() {
         if (!desiredPlay && work?.isActive != true) { persist(); stopSelf() }
     }
     override fun onDestroy() {
+        resetting=true
         @Suppress("DEPRECATION")
         stopForeground(true)
         work?.cancel(); engine.close(); session?.release(); player.release(); scope.cancel()

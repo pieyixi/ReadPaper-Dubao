@@ -90,6 +90,9 @@ class OnlinePlaybackTest {
             File(evidence,"playback.json").writeText(jsonCodec.toJson(results))
             command("stop")
             waitFor("Stop retained old media") { main { player.mediaItemCount==0 } }
+            Thread.sleep(2000)
+            assertEquals("Cancelled prefetch restarted after stop",0,main { player.mediaItemCount })
+            assertFalse(PlaybackSignals.state.value.playing)
         } finally {
             shell("input keyevent 224");shell("wm dismiss-keyguard")
             runCatching { command("stop") };main { player.release() }
