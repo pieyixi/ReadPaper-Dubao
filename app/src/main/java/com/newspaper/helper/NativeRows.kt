@@ -27,7 +27,11 @@ class NativeRows(private val host: MainActivity, private val onClick: (NativeRow
     override fun areContentsTheSame(a: NativeRow, b: NativeRow) = a == b
 }) {
     var items: List<NativeRow> get() = currentList; set(value) { submitList(value) }
-    var appearance = ReaderSettings(); set(value) { if (field != value) { field = value; notifyItemRangeChanged(0, itemCount) } }
+    var appearance = ReaderSettings(); set(value) {
+        val changed=field.theme!=value.theme || field.font!=value.font || field.line!=value.line
+        field=value
+        if(changed)notifyItemRangeChanged(0,itemCount)
+    }
     var month = YearMonth.now().toString()
     var highlight = ""; set(value) {
         if (field == value) return

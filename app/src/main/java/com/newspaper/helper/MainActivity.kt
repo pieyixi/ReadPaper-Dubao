@@ -41,6 +41,7 @@ class MainActivity : AppCompatActivity() {
     private var controllerFuture: com.google.common.util.concurrent.ListenableFuture<MediaController>? = null
     private var current = Screen()
     private var appearance = ReaderSettings()
+    private var appearanceApplied=false
     private var status = PlaybackStatus()
     private var lastRoute: Route? = null
     private var restoring = false
@@ -148,7 +149,12 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch { model.screen.collect { screen -> current = screen; render() } }
-                launch { model.settings.collect { settings -> appearance = settings; applyAppearance(); render() } }
+                launch { model.settings.collect { settings ->
+                    val changed=appearance.theme!=settings.theme || appearance.font!=settings.font || appearance.line!=settings.line
+                    appearance=settings
+                    // 保存导航地址也会触发设置流，不能因此重建当前页的全部文字和布局。
+                    if(changed || !appearanceApplied) {appearanceApplied=true;applyAppearance();render()}
+                } }
                 launch { PlaybackSignals.state.collect { playback ->
                     status = playback
                     if (current.route.page == Page.CUSTOM) {

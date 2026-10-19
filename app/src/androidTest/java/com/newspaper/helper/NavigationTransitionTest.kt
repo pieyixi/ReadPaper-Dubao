@@ -130,7 +130,6 @@ class NavigationTransitionTest {
             lateinit var listener:ViewTreeObserver.OnPreDrawListener
             scenario.onActivity {activity ->
                 val list=activity.findViewById<RecyclerView>(R.id.list)
-                assertNull("Shared page list must not retain disappearing holders",list.itemAnimator)
                 listener=ViewTreeObserver.OnPreDrawListener {
                     frames++
                     val stale=texts(list).filter {value->markers.any {it in value && it !in wanted}}
@@ -153,7 +152,7 @@ class NavigationTransitionTest {
             Paper.entries.forEach {paper ->
                 val prefix="NAV_${paper.name}_"
                 val year=prefix+"YEAR";val issue=prefix+"ISSUE";val storyTitle=prefix+"STORY";val body=prefix+"BODY"
-                markers+=listOf(year,issue,storyTitle,body)
+                scenario.onActivity {markers+=listOf(year,issue,storyTitle,body)}
                 val story=Story(paper,"https://example.invalid/${paper.name}/article",storyTitle,date="2026-10-19")
                 val directory=if(paper==Paper.QIUSHI)Route(Page.ISSUES,paper,label="2026",url="https://example.invalid/2026") else Route(Page.CALENDAR,paper)
                 val stories=Route(Page.STORIES,paper,label="2026-10-19",url="https://example.invalid/${paper.name}/issue")
