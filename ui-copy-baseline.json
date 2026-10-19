@@ -28,7 +28,14 @@
     "ui_empty": "暂无内容",
     "ui_retry": "点击重试",
     "ui_has": "有报",
-    "ui_none": "无报"
+    "ui_none": "无报",
+    "ui_note_title": "标题",
+    "ui_pin": "置顶",
+    "ui_unpin": "取消置顶",
+    "ui_delete": "删除",
+    "ui_selected": "已选择%1$d项",
+    "ui_delete_notes": "删除所选的%1$d条便签？",
+    "ui_note_words": "%1$d字"
   },
   "source_names_and_subtitles": [
     "学习时报",
@@ -45,5 +52,6 @@
   "dynamic_data": [
     "日期、年份、期号、版面、来源标题、作者、正文、文章数量"
   ],
-  "accessibility": "a11y_ 资源只用于 contentDescription，不作为可见文案。"
+  "accessibility": "a11y_ 资源只用于 contentDescription，不作为可见文案。",
+  "user_approved_notes": "2026-10-19 用户确认便签标题、日期字数、多选、置顶删除及删除确认；既有报刊页面文案不变。"
 }

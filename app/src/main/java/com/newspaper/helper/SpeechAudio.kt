@@ -9,7 +9,7 @@ import java.util.UUID
 import kotlin.coroutines.coroutineContext
 
 internal object SpeechPolicy {
-    fun online(article:Article) = !article.story.url.startsWith("custom:")
+    fun privateText(article:Article) = article.story.url.startsWith("custom:")
     fun fingerprint(article:Article,engine:SpeechEngine) = stableId(
         "${Segmenter.VERSION}|${engine.cacheIdentity}|"+article.blocks.joinToString("\n") { "${it.id}|${it.kind}|${it.text}" })
     fun resume(position:ReadingPosition?,article:Article,segments:List<SpeechSegment>,fingerprint:String):Pair<Int,Long> {

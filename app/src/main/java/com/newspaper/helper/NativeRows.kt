@@ -76,7 +76,8 @@ class NativeRows(private val host: MainActivity, private val onClick: (NativeRow
                         addView(name)
                         addView(host.text(paper.subtitle,12f,0xddffffff.toInt()).apply { gravity=Gravity.CENTER; setPadding(0,host.dp(4),0,0) })
                         isClickable = true; isFocusable = true; contentDescription = paper.label
-                        setOnClickListener { host.openPaper(paper) }
+                        pressFeedback()
+                        setOnClickListener { host.expandFrom(this,paper.colors[0]);host.openPaper(paper) }
                     }
                     val width = host.resources.configuration.screenWidthDp
                     val gap = if (width <= 360) 10 else 16
@@ -88,10 +89,10 @@ class NativeRows(private val host: MainActivity, private val onClick: (NativeRow
             RowKind.CALENDAR -> {
                 val ym = YearMonth.parse(month)
                 val header = LinearLayout(host).apply { gravity=Gravity.CENTER; orientation=LinearLayout.HORIZONTAL }
-                fun arrow(value: String, delta: Long) = host.text(value,28f,p.faint).apply { gravity=Gravity.CENTER; isFocusable=true; isClickable=true; setOnClickListener { host.calendarNavigate(delta) } }
-                header.addView(arrow("‹",-1),LinearLayout.LayoutParams(host.dp(48),host.dp(48)))
+                fun arrow(delta:Long)=GlyphView(host).apply {glyph=if(delta<0)Glyph.BACK else Glyph.CHEVRON_RIGHT;ink=p.faint;contentDescription=host.getString(if(delta<0)R.string.a11y_previous_month else R.string.a11y_next_month);setOnClickListener {host.calendarNavigate(delta)}}
+                header.addView(arrow(-1),LinearLayout.LayoutParams(host.dp(48),host.dp(48)))
                 header.addView(host.text("${ym.year}年${ym.monthValue}月",20f).apply { gravity=Gravity.CENTER; setTypeface(typeface,Typeface.BOLD) },LinearLayout.LayoutParams(host.dp(160),host.dp(48)))
-                header.addView(arrow("›",1),LinearLayout.LayoutParams(host.dp(48),host.dp(48)))
+                header.addView(arrow(1),LinearLayout.LayoutParams(host.dp(48),host.dp(48)))
                 box.addView(header,LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=host.dp(20) })
                 val weekdays = LinearLayout(host)
                 listOf("日","一","二","三","四","五","六").forEach { weekdays.addView(host.text(it,13f,p.faint).apply { gravity=Gravity.CENTER },LinearLayout.LayoutParams(0,host.dp(32),1f)) }
@@ -171,6 +172,6 @@ class NativeRows(private val host: MainActivity, private val onClick: (NativeRow
             RowKind.MESSAGE -> { box.setPadding(host.dp(20),host.dp(60),host.dp(20),host.dp(16)); text(row.title,15f,p.faint).gravity=Gravity.CENTER }
             RowKind.RETRY -> { text(row.title,14f).apply { gravity=Gravity.CENTER; setPadding(host.dp(24),host.dp(12),host.dp(24),host.dp(12)); background=host.rounded(p.card,8) } }
         }
-        if(row.kind in listOf(RowKind.ISSUE,RowKind.STORY,RowKind.RETRY)) { box.isClickable=true; box.isFocusable=true; box.setOnClickListener { onClick(row) } }
+        if(row.kind in listOf(RowKind.ISSUE,RowKind.STORY,RowKind.RETRY)) { box.isClickable=true; box.isFocusable=true;box.pressFeedback();box.setOnClickListener { onClick(row) } }
     }
 }

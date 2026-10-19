@@ -42,6 +42,13 @@ class MainActivity : AppCompatActivity() {
     private var lastRoute: Route? = null
     private var restoring = false
     private lateinit var chrome: ReadingChrome
+    private lateinit var notes:NativeNotes
+    private lateinit var motion:NativeMotion
+    private var bindingDraft=false
+    private var visualRoute:Route?=null
+    private var returning=false
+    private var lastNoteError=false
+    private var speechRevision=0L
     private var pendingSpeech: SpeechRequest? = null
     private var voiceSettingsOpened = false
     val palette: Palette get() = Palette.forTheme(appearance.theme)
@@ -51,17 +58,14 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        motion=NativeMotion(this,binding.readerFrame)
+        notes=NativeNotes(this,binding,model)
         chrome = ReadingChrome(this,binding,{ controller },
             { theme,font,line -> model.changeSettings(theme ?: appearance.theme,font ?: appearance.font,line ?: appearance.line) },
             ::playOrPause,{
-                val sameTarget = if(current.route.page==Page.CUSTOM) status.article.startsWith("custom:") else status.article==current.article?.story?.url
-                if(!sameTarget || status.article.isEmpty()) playOrPause()
-            },::command,{
-                current.article?.story?.let { story ->
-                    val remaining=model.listForQueue.dropWhile { it.url!=story.url }.ifEmpty { listOf(story) }
-                    sendSpeech(SpeechRequest(stories=remaining,append=true))
-                }
-            })
+                if(current.route.page==Page.CUSTOM) lifecycleScope.launch {if(model.customArticle().story.url!=status.article)playOrPause()}
+                else if(status.article!=current.article?.story?.url || status.article.isEmpty()) playOrPause()
+            },::command)
         rows = NativeRows(this, ::rowClick)
         binding.list.layoutManager = LinearLayoutManager(this)
         binding.list.adapter = rows
@@ -73,23 +77,37 @@ class MainActivity : AppCompatActivity() {
                     model.saveScroll(pos, lm.findViewByPosition(pos)?.top ?: 0)
                 }
             }
+            override fun onScrolled(recyclerView:androidx.recyclerview.widget.RecyclerView,dx:Int,dy:Int) { toolbarScrolled(recyclerView.canScrollVertically(-1)) }
         })
         binding.back.glyph = Glyph.BACK
         binding.back.contentDescription = getString(R.string.a11y_back)
         binding.back.setOnClickListener { back() }
         binding.paste.glyph = Glyph.PASTE
         binding.paste.contentDescription = getString(R.string.a11y_custom)
-        binding.paste.setOnClickListener { model.navigate(Route(Page.CUSTOM)) }
+        binding.paste.setOnClickListener { model.navigate(Route(Page.NOTES)) }
         binding.settings.contentDescription = getString(R.string.a11y_settings)
         binding.editor.contentDescription = getString(R.string.a11y_editor)
         binding.editor.setText(model.draft)
         binding.editor.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                model.draft = s?.toString().orEmpty()
+                if(bindingDraft)return
+                speechRevision++
+                model.updateDraft(binding.noteTitle.text.toString(),s?.toString().orEmpty())
+                noteMetadata()
                 if (status.article.startsWith("custom:")) command("stop")
             }
             override fun afterTextChanged(s: Editable?) = Unit
+        })
+        binding.noteTitle.addTextChangedListener(object:TextWatcher {
+            override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int)=Unit
+            override fun afterTextChanged(s:Editable?)=Unit
+            override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int) {
+                if(bindingDraft)return
+                speechRevision++
+                model.updateDraft(s?.toString().orEmpty(),binding.editor.text.toString());noteMetadata()
+                if(status.article.startsWith("custom:"))command("stop")
+            }
         })
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) { override fun handleOnBackPressed() { back() } })
         connectController()
@@ -102,8 +120,10 @@ class MainActivity : AppCompatActivity() {
                     if (current.route.page == Page.CUSTOM) {
                         val edit = binding.editor.text
                         edit.getSpans(0,edit.length,android.text.style.BackgroundColorSpan::class.java).forEach { edit.removeSpan(it) }
-                        val line = playback.block.removePrefix("custom-").toIntOrNull()
-                        if (line != null && playback.article.startsWith("custom:")) {
+                        val rawLine = playback.block.removePrefix("custom-").toIntOrNull()
+                        val line=rawLine?.minus(if(model.draftTitle.isNotBlank())1 else 0)
+                        binding.noteTitle.setBackgroundColor(if(line==-1 && playback.article.startsWith("custom:")) if(appearance.theme==1)0xff273848.toInt() else 0xffedf3f8.toInt() else Color.TRANSPARENT)
+                        if (line != null && line>=0 && playback.article.startsWith("custom:")) {
                             var start = 0
                             repeat(line) { start = edit.indexOf('\n',start).let { if (it < 0) edit.length else it + 1 } }
                             val end = edit.indexOf('\n',start).let { if (it < 0) edit.length else it }
@@ -133,9 +153,23 @@ class MainActivity : AppCompatActivity() {
         }, ContextCompat.getMainExecutor(this))
     }
     private fun back() {
+        motion.cancel()
         if (chrome.close()) return
         (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(binding.editor.windowToken, 0)
+        returning=true
         if (!model.back()) finish()
+    }
+    fun expandFrom(source:View,color:Int=ChromeColors.forTheme(appearance.theme).accent) {motion.expand(source,color)}
+    fun deletedNotes(ids:Set<String>) {if(status.article.startsWith("custom:"))command("stop")}
+    fun toolbarScrolled(scrolled:Boolean) {binding.toolbar.elevation=if(scrolled)dp(1).toFloat() else 0f}
+    private fun noteMetadata() {
+        val title=binding.noteTitle.text.toString();val body=binding.editor.text.toString()
+        // 字数只统计非空白 Unicode 码点，正文扫描放到后台，旧结果不得覆盖更新后的输入。
+        lifecycleScope.launch {
+            val count=withContext(Dispatchers.Default){(title+body).codePoints().filter { !Character.isWhitespace(it) }.count().toInt()}
+            if(title!=binding.noteTitle.text.toString()||body!=binding.editor.text.toString())return@launch
+            binding.noteMetadata.text=java.text.SimpleDateFormat("M月d日 HH:mm",java.util.Locale.SIMPLIFIED_CHINESE).format(java.util.Date(model.draftUpdated))+"  |  "+getString(R.string.ui_note_words,count)
+        }
     }
     private fun applyAppearance() {
         val p = palette
@@ -143,7 +177,12 @@ class MainActivity : AppCompatActivity() {
         binding.title.setTextColor(p.text)
         binding.settings.setTextColor(p.muted)
         binding.editor.setTextColor(p.text)
+        binding.noteTitle.setTextColor(p.text);binding.noteTitle.setHintTextColor(p.faint)
+        binding.noteMetadata.setTextColor(p.faint)
+        binding.selectionHeading.setTextColor(p.text)
+        binding.toolbar.setBackgroundColor(p.bg)
         binding.editor.textSize = floatArrayOf(15f,17f,19f,21f)[appearance.font]
+        binding.editor.setLineSpacing(0f,floatArrayOf(1.65f,1.85f,2.05f,2.25f)[appearance.line])
         binding.back.ink = p.muted; binding.paste.ink = p.muted
         window.statusBarColor = p.bg; window.navigationBarColor = p.bg
         if (Build.VERSION.SDK_INT >= 23) window.decorView.systemUiVisibility = if (appearance.theme == 1) 0 else View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
@@ -161,11 +200,14 @@ class MainActivity : AppCompatActivity() {
         }
         if (current.route.page != Page.CUSTOM && current.article == null && controller?.mediaItemCount == 0) { command("resumeQueue");return }
         lifecycleScope.launch {
+            val revision=speechRevision
             val target = if (current.route.page == Page.CUSTOM) model.customArticle().story.url else current.article?.story?.url
+            if(revision!=speechRevision)return@launch
             if (target == status.article && status.preparing) { command("toggle"); return@launch }
             if (target != null && target != status.article || status.failed || controller?.mediaItemCount == 0) {
                 if (current.route.page == Page.CUSTOM) {
-                    val draft = model.draft
+                    val title=model.draftTitle;val body=model.draft
+                    val draft = withContext(Dispatchers.Default) {listOf(title,body).filter(String::isNotBlank).joinToString("\n")}
                     if (draft.isNotBlank()) {
                         val name = withContext(Dispatchers.IO) {
                             val directory = File(cacheDir, "speech-input").apply { mkdirs() }
@@ -174,7 +216,8 @@ class MainActivity : AppCompatActivity() {
                             File(directory,name).writeText(draft)
                             name
                         }
-                        sendSpeech(SpeechRequest(custom = name))
+                        if(revision==speechRevision)sendSpeech(SpeechRequest(custom = name))
+                        else withContext(Dispatchers.IO) {File(File(cacheDir,"speech-input"),name).delete()}
                     }
                 }
                 else current.article?.let { sendSpeech(SpeechRequest(stories = listOf(it.story))) }
@@ -193,14 +236,31 @@ class MainActivity : AppCompatActivity() {
         binding.back.isVisible = route.page != Page.HOME
         chrome.route(route)
         binding.title.text = when (route.page) {
-            Page.HOME, Page.CUSTOM -> ""
+            Page.HOME, Page.CUSTOM,Page.NOTES -> ""
             Page.CALENDAR, Page.YEARS -> route.paper.label
             Page.ISSUES -> "${route.label}年《求是》"
             Page.READER -> current.article?.story?.date ?: route.date
             Page.STORIES -> route.label
         }
-        binding.list.isVisible = route.page != Page.CUSTOM
-        binding.editor.isVisible = route.page == Page.CUSTOM
+        binding.list.isVisible = route.page !in listOf(Page.CUSTOM,Page.NOTES)
+        binding.editorPanel.isVisible = route.page == Page.CUSTOM
+        binding.editor.isEnabled=!current.loading && !current.error
+        binding.noteTitle.isEnabled=binding.editor.isEnabled
+        if(route.page==Page.CUSTOM) {
+            bindingDraft=true
+            if(binding.editor.text.toString()!=model.draft)binding.editor.setText(model.draft)
+            if(binding.noteTitle.text.toString()!=model.draftTitle)binding.noteTitle.setText(model.draftTitle)
+            bindingDraft=false;noteMetadata()
+        }
+        notes.render(current,appearance)
+        if(current.noteError && !lastNoteError)android.widget.Toast.makeText(this,R.string.ui_error,android.widget.Toast.LENGTH_LONG).show()
+        lastNoteError=current.noteError
+        if(visualRoute!=route) {
+            speechRevision++
+            visualRoute=route;toolbarScrolled(false)
+            motion.enter(if(route.page==Page.CUSTOM)binding.editorPanel else if(route.page==Page.NOTES)binding.notesPanel else binding.list,returning)
+            returning=false
+        }
         val content = mutableListOf<NativeRow>()
         when {
             current.loading -> content += NativeRow("loading", RowKind.MESSAGE, getString(R.string.ui_loading))
@@ -229,7 +289,7 @@ class MainActivity : AppCompatActivity() {
             }
             else -> Unit
         }
-        if (content.isEmpty() && route.page != Page.CUSTOM) content += NativeRow("empty", RowKind.MESSAGE, getString(R.string.ui_empty))
+        if (content.isEmpty() && route.page !in listOf(Page.CUSTOM,Page.NOTES)) content += NativeRow("empty", RowKind.MESSAGE, getString(R.string.ui_empty))
         rows.month = route.month
         rows.submitList(content) {
             rows.highlight = if (status.article == current.article?.story?.url) status.block else ""
@@ -268,6 +328,7 @@ class MainActivity : AppCompatActivity() {
         if (voiceSettingsOpened) { command("refreshVoice");voiceSettingsOpened=false }
     }
     override fun onPause() {
+        model.flushDraft()
         if (::binding.isInitialized && current.article != null && !restoring) {
             val lm=binding.list.layoutManager as LinearLayoutManager
             val first=lm.findFirstVisibleItemPosition()
@@ -276,6 +337,7 @@ class MainActivity : AppCompatActivity() {
         super.onPause()
     }
     override fun onDestroy() {
+        if(::motion.isInitialized)motion.cancel()
         controllerFuture?.let { MediaController.releaseFuture(it) }
         super.onDestroy()
     }

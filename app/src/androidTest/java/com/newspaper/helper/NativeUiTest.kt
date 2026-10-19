@@ -112,6 +112,8 @@ class NativeUiTest {
     @Test fun customStartsEmptyAcceptsLongTextAndSurvivesRotation() {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             onView(withId(R.id.paste)).perform(click())
+            onView(withId(R.id.newNote)).perform(click())
+            waitFor("new note did not open") {var ready=false;scenario.onActivity {ready=it.findViewById<EditText>(R.id.editor).isShown&&it.findViewById<EditText>(R.id.editor).isEnabled};ready}
             var initial="x"
             scenario.onActivity { initial=it.findViewById<EditText>(R.id.editor).text.toString() }
             assertEquals("",initial)

@@ -3,6 +3,8 @@ package com.newspaper.helper
 import android.content.ComponentName
 import android.content.Intent
 import android.os.Bundle
+import androidx.media3.common.Player
+import androidx.media3.common.MediaItem
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionToken
@@ -34,6 +36,168 @@ class OnlinePlaybackTest {
         fail("$message: ${PlaybackSignals.state.value}")
     }
     private fun shell(command:String) = android.os.ParcelFileDescriptor.AutoCloseInputStream(instrumentation.uiAutomation.executeShellCommand(command)).bufferedReader().use { it.readText() }
+    @Test fun pastedNoteUsesOnlineYunyangAndStopsOnEditing() {
+        val settings=SettingsStore(app)
+        runBlocking {settings.route(jsonCodec.toJson(Route()));settings.appearance(0,2,2);settings.playbackMode(PlaybackMode.FULL_ONCE)}
+        val future=main {MediaController.Builder(app,SessionToken(app,ComponentName(app,ReadAloudService::class.java))).buildAsync()}
+        val player=future.get(30,TimeUnit.SECONDS)
+        val evidence=File(app.getExternalFilesDir(null),"online-evidence").apply {mkdirs()}
+        var noteId:String?=null
+        try {ActivityScenario.launch(MainActivity::class.java).use {scenario ->
+            scenario.onActivity {it.findViewById<android.view.View>(R.id.paste).performClick()}
+            waitFor("Note history did not open") {var ok=false;scenario.onActivity {ok=it.findViewById<android.view.View>(R.id.newNote).isShown};ok}
+            scenario.onActivity {it.findViewById<android.view.View>(R.id.newNote).performClick()}
+            waitFor("New note did not become editable") {var ok=false;scenario.onActivity {ok=it.findViewById<android.widget.EditText>(R.id.editor).isShown&&it.findViewById<android.widget.EditText>(R.id.editor).isEnabled};ok}
+            scenario.onActivity {
+                noteId=androidx.lifecycle.ViewModelProvider(it)[ReaderViewModel::class.java].screen.value.route.noteId
+                it.findViewById<android.widget.EditText>(R.id.noteTitle).setText("朗读检查")
+                it.findViewById<android.widget.EditText>(R.id.editor).setText("这是一段用于检查粘贴朗读的文本。\n同一份笔记可以继续编辑，也可以暂停和恢复朗读。")
+                it.findViewById<android.view.View>(R.id.speech).performClick()
+            }
+            waitFor("Pasted text did not play") {PlaybackSignals.state.value.article.startsWith("custom:")&&main {player.isPlaying&&player.currentPosition>100}}
+            main {player.pause()}
+            val path=main {checkNotNull(player.currentMediaItem?.localConfiguration?.uri?.path)}
+            assertTrue("Pasted text fell back to system speech",path.endsWith(".mp3"))
+            assertTrue("Pasted audio entered shared cache",File(path).name.startsWith("private-"))
+            File(path).copyTo(File(evidence,"pasted-yunyang.mp3"),overwrite=true)
+            File(evidence,"pasted-speech.png").outputStream().use {instrumentation.uiAutomation.takeScreenshot().compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)}
+            main {player.play()}
+            waitFor("Pasted audio did not resume") {main {player.isPlaying}}
+            scenario.onActivity {it.findViewById<android.widget.EditText>(R.id.editor).append("\n编辑后旧声音必须停止。")}
+            waitFor("Editing did not cancel old audio") {main {player.mediaItemCount==0}&&PlaybackSignals.state.value.article.isEmpty()}
+            waitFor("Edited note was not saved") {runBlocking {ReaderDatabase.get(app).reader().note(checkNotNull(noteId))?.content?.endsWith("编辑后旧声音必须停止。")==true}}
+            assertFalse(File(path).exists())
+            File(evidence,"pasted-playback.json").writeText(jsonCodec.toJson(mapOf("online_mp3" to true,"private_cache" to true,"pause_resume" to true,"editing_cancels_old_audio" to true,"local_note_saved" to true)))
+            shell("mkdir -p /sdcard/Download/dubao-online-evidence")
+            shell("cp -r /sdcard/Android/data/com.newspaper.helper/files/online-evidence/. /sdcard/Download/dubao-online-evidence/")
+        }} finally {
+            runCatching {main {player.sendCustomCommand(SessionCommand("stop",Bundle.EMPTY),Bundle.EMPTY)}.get(10,TimeUnit.SECONDS)}
+            noteId?.let {runBlocking {ReaderDatabase.get(app).reader().deleteNotes(listOf(it))}}
+            main {player.release()}
+        }
+    }
+    @Test fun originalParagraphLoopsWholeArticleRestartsAndOncePauses() {
+        // 仅测试 APK 内的受控文本，不作为原站采集证据；使用真实联网合成和播放器。
+        val article=Article(Story(Paper.PEOPLE,"https://example.org/dubao-mode-regression","",date="2026-10-19"),
+            (0..11).map { index -> BodyBlock("mode-$index",BlockKind.PARAGRAPH,
+                if(index==0) "原文第一句。"+"这是同一自然段后面的内容。".repeat(7) else "这是第${index+1}自然段。") })
+        val plan=Segmenter.split(article)
+        val paragraph=PlaybackBounds.paragraph(plan,0)
+        assertTrue("Fixture must split a natural paragraph",paragraph.count()>1)
+        assertTrue("Fixture must exceed the rolling window",plan.size>8)
+        val settings=SettingsStore(app)
+        runBlocking(Dispatchers.IO) {
+            ReaderDatabase.get(app).reader().saveArticle(ArticleRecord(article.story.url,jsonCodec.toJson(article),System.currentTimeMillis()))
+            ReaderDatabase.get(app).reader().savePosition(ReadingPosition(article.story.url))
+            settings.route(jsonCodec.toJson(Route(Page.READER,story=article.story)))
+            settings.appearance(0,2,2)
+            settings.playbackMode(PlaybackMode.FULL_ONCE)
+        }
+        val future=main { MediaController.Builder(app,SessionToken(app,ComponentName(app,ReadAloudService::class.java))).buildAsync() }
+        val player=future.get(30,TimeUnit.SECONDS)
+        fun command(name:String,args:Bundle=Bundle.EMPTY)=main { player.sendCustomCommand(SessionCommand(name,Bundle.EMPTY),args) }.get(10,TimeUnit.SECONDS)
+        fun choose(mode:PlaybackMode) {
+            repeat(3) {
+                if(PlaybackSignals.state.value.mode==mode) return
+                command("cycleMode")
+                Thread.sleep(100)
+            }
+            assertEquals(mode,PlaybackSignals.state.value.mode)
+        }
+        fun skip(delta:Int)=command("step",Bundle().apply { putInt("delta",delta) })
+        fun at(index:Int)=main { player.currentMediaItem?.mediaId==index.toString() && player.duration>0 }
+        fun nearEndAndPlay()=main { player.seekTo((player.duration-80).coerceAtLeast(0));player.play() }
+        val evidence=File(app.getExternalFilesDir(null),"online-evidence").apply { mkdirs() }
+        try {
+            choose(PlaybackMode.FULL_ONCE)
+            main { player.setPlaybackSpeed(1f) }
+            command("speak",Bundle().apply { putString("request",jsonCodec.toJson(SpeechRequest(stories=listOf(article.story)))) })
+            waitFor("Mode fixture did not play") { main { player.isPlaying && player.currentPosition>80 } }
+            main { player.pause() }
+            ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+                waitFor("Mode reader did not load") {
+                    var ready=false
+                    scenario.onActivity { ready=it.findViewById<android.view.View>(R.id.speech).isShown && it.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.list).adapter!!.itemCount>3 }
+                    ready
+                }
+                scenario.onActivity { it.findViewById<android.view.View>(R.id.speech).performClick() }
+                fun tapMode() { scenario.onActivity { it.window.decorView.findViewWithTag<GlyphView>("playbackMode").performClick() } }
+                for(mode in listOf(PlaybackMode.FULL_LOOP,PlaybackMode.PARAGRAPH_LOOP,PlaybackMode.FULL_ONCE)) {
+                    tapMode()
+                    waitFor("Button did not select $mode") { PlaybackSignals.state.value.mode==mode }
+                    waitFor("Mode choice not persisted") { runBlocking { settings.playbackMode()==mode } }
+                    assertFalse("Mode selection resumed paused audio",main { player.playWhenReady })
+                    instrumentation.waitForIdleSync();Thread.sleep(150)
+                    File(evidence,"mode-${mode.name.lowercase()}.png").outputStream().use {
+                        instrumentation.uiAutomation.takeScreenshot().compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)
+                    }
+                }
+                tapMode() // FULL_LOOP
+                waitFor("Full loop not selected") { PlaybackSignals.state.value.mode==PlaybackMode.FULL_LOOP }
+                scenario.recreate()
+                waitFor("Reader did not recreate") {
+                    var ready=false
+                    scenario.onActivity { ready=it.findViewById<android.view.View>(R.id.speech).isShown }
+                    ready
+                }
+                scenario.onActivity { it.findViewById<android.view.View>(R.id.speech).performClick() }
+                waitFor("Mode icon lost on recreation") {
+                    var correct=false
+                    scenario.onActivity { correct=it.window.decorView.findViewWithTag<GlyphView>("playbackMode")?.glyph==Glyph.REPEAT_ALL }
+                    correct
+                }
+                skip(plan.lastIndex-PlaybackSignals.state.value.segmentIndex)
+                waitFor("Tail did not load") { at(plan.lastIndex) }
+                assertFalse("Tail must test restart outside rolling window",main { (0 until player.mediaItemCount).any { player.getMediaItemAt(it).mediaId=="0" } })
+                nearEndAndPlay()
+                waitFor("Full loop failed to return to article start") { at(0) && main { player.isPlaying && player.currentPosition>50 } }
+                main { player.pause() }
+                // 当前缓冲确实包含下个自然段，选择单段模式后必须将它裁掉。
+                waitFor("No next paragraph was prefetched") { main { (0 until player.mediaItemCount).any { player.getMediaItemAt(it).mediaId.toInt()>paragraph.last } } }
+                tapMode() // PARAGRAPH_LOOP
+                waitFor("Paragraph loop not selected") { PlaybackSignals.state.value.mode==PlaybackMode.PARAGRAPH_LOOP }
+                assertTrue("Next paragraph leaked into repeat playlist",main { (0 until player.mediaItemCount).all { player.getMediaItemAt(it).mediaId.toInt() in paragraph } })
+                val visited=mutableListOf<Int>()
+                val listener=object:Player.Listener {
+                    override fun onMediaItemTransition(mediaItem:MediaItem?,reason:Int) { mediaItem?.mediaId?.toIntOrNull()?.let { visited+=it } }
+                }
+                main { player.addListener(listener) }
+                try {
+                    nearEndAndPlay()
+                    waitFor("Paragraph did not read its second audio chunk") { at(paragraph.first+1) && main { player.isPlaying && player.currentPosition>50 } }
+                    main { player.pause() }
+                    nearEndAndPlay()
+                    waitFor("Whole natural paragraph did not repeat from its start") { at(paragraph.first) && main { player.isPlaying && player.currentPosition>50 } }
+                    main { player.pause() }
+                    assertTrue(main { visited.all { it in paragraph } })
+                } finally { main { player.removeListener(listener) } }
+                skip(1)
+                waitFor("Next did not switch the repeating original paragraph") { PlaybackSignals.state.value.block=="mode-1" && at(paragraph.last+1) }
+                skip(-1)
+                waitFor("Previous did not return to original paragraph start") { at(paragraph.first) }
+                tapMode() // FULL_ONCE
+                waitFor("Play once not selected") { PlaybackSignals.state.value.mode==PlaybackMode.FULL_ONCE }
+                skip(plan.lastIndex-PlaybackSignals.state.value.segmentIndex)
+                waitFor("Once tail did not load") { at(plan.lastIndex) }
+                nearEndAndPlay()
+                waitFor("Article did not pause at its end") { main { player.playbackState==Player.STATE_ENDED && !player.playWhenReady && !player.isPlaying } }
+                Thread.sleep(1000)
+                assertTrue(at(plan.lastIndex))
+                assertEquals(article.story.url,PlaybackSignals.state.value.article)
+                File(evidence,"repeat-modes.json").writeText(jsonCodec.toJson(mapOf(
+                    "original_paragraph_chunks" to paragraph.count(),"article_chunks" to plan.size,
+                    "full_loop_returns_to_start" to true,"paragraph_keeps_all_chunks" to true,"once_pauses_at_end" to true)))
+            }
+            command("stop")
+            Thread.sleep(1000)
+            assertEquals(0,main { player.mediaItemCount })
+            shell("mkdir -p /sdcard/Download/dubao-online-evidence")
+            shell("cp -r /sdcard/Android/data/com.newspaper.helper/files/online-evidence/. /sdcard/Download/dubao-online-evidence/")
+        } finally {
+            runCatching { choose(PlaybackMode.FULL_ONCE);command("stop") }
+            main { player.release() }
+        }
+    }
     @Test fun fivePaperSamplesPlayOnlineAndSurvivePauseSwitchAndScreenOff() {
         val assets=instrumentation.context.assets
         val urls=JSONObject(assets.open("sources/provenance.json").bufferedReader().readText())

@@ -91,7 +91,9 @@ class TopBarUiTest {
                 shot("intermediate-${page.name.lowercase()}")
             }
             navigate(Route(Page.HOME));waitFor("Home did not return") { visible(R.id.paste) }
-            click(R.id.paste);waitFor("Custom reader missing") { visible(R.id.editor) && visible(R.id.speech) }
+            click(R.id.paste);waitFor("Note history missing") { visible(R.id.noteList) && visible(R.id.newNote) }
+            assertFalse(visible(R.id.actions))
+            click(R.id.newNote);waitFor("Custom reader missing") { visible(R.id.editor) && visible(R.id.speech) }
             assertTrue(visible(R.id.settings));assertFalse(visible(R.id.paste))
             scenario.onActivity { assertEquals("",it.findViewById<EditText>(R.id.editor).text.toString()) }
             for(theme in 0..2) {

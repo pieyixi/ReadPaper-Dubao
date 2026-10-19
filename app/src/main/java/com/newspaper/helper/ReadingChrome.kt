@@ -24,8 +24,7 @@ internal class ReadingChrome(
     private val settingsChanged: (Int?, Int?, Int?) -> Unit,
     private val play: () -> Unit,
     private val start: () -> Unit,
-    private val command: (String, Bundle) -> Unit,
-    private val queue: () -> Unit
+    private val command: (String, Bundle) -> Unit
 ) {
     private enum class Panel { TYPE, SPEECH }
     private var panel: Panel? = null
@@ -33,6 +32,7 @@ internal class ReadingChrome(
     private var settings = ReaderSettings()
     private var status = PlaybackStatus()
     private var playButton: GlyphView? = null
+    private var modeButton: GlyphView? = null
     private var count: TextView? = null
     private var elapsed: TextView? = null
     private var duration: TextView? = null
@@ -40,6 +40,10 @@ internal class ReadingChrome(
     private var seeking = false
     private var seekMediaId: String? = null
     private val speedButtons = mutableListOf<TextView>()
+    private var speedThumb:View?=null
+    private var speedTrack:android.widget.FrameLayout?=null
+    private var panelRevision=0L
+    private var modeToast=false
     private val ink get() = ChromeColors.forTheme(settings.theme)
     private fun dp(n: Int) = host.dp(n)
     private fun label(resource: Int) = host.getString(resource)
@@ -55,6 +59,7 @@ internal class ReadingChrome(
         }
         binding.speech.setOnClickListener { toggle(Panel.SPEECH); if (panel == Panel.SPEECH) start() }
         binding.settings.setOnClickListener { toggle(Panel.TYPE) }
+        binding.settings.pressFeedback()
         binding.dismissPanel.setOnClickListener { close() }
     }
     fun route(next: Route) {
@@ -74,29 +79,49 @@ internal class ReadingChrome(
         styleButtons()
         if (changed && panel != null) build()
     }
-    fun playback(next: PlaybackStatus) { status = next; updateProgress(); styleButtons() }
+    fun playback(next: PlaybackStatus) {
+        if(modeToast && next.mode!=status.mode) {modeToast=false;android.widget.Toast.makeText(host,label(modeLabel(next.mode)),android.widget.Toast.LENGTH_SHORT).show()}
+        status = next; updateProgress(); styleButtons()
+    }
     fun close(): Boolean {
         if (panel == null) return false
         panel = null
+        val revision=++panelRevision
         binding.sheet.animate().cancel()
-        binding.sheet.isVisible = false
-        binding.dismissPanel.isVisible = false
+        binding.dismissPanel.animate().cancel()
+        if(host.motionEnabled()) {
+            binding.sheet.animate().alpha(0f).translationY(-dp(8).toFloat()).scaleX(.94f).scaleY(.94f).setDuration(160)
+                .withEndAction {if(revision==panelRevision && panel==null)binding.sheet.isVisible=false}.start()
+            binding.dismissPanel.animate().alpha(0f).setDuration(160).withEndAction {if(revision==panelRevision && panel==null)binding.dismissPanel.isVisible=false}.start()
+        } else {binding.sheet.isVisible=false;binding.dismissPanel.isVisible=false}
+        binding.sheet.importantForAccessibility=View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
         binding.list.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
         binding.editor.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
+        binding.notesPanel.importantForAccessibility=View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
+        binding.editorPanel.importantForAccessibility=View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
         styleButtons()
         return true
     }
     private fun toggle(next: Panel) {
         if (panel == next) { close(); return }
         panel = next
+        ++panelRevision
+        binding.sheet.animate().cancel();binding.dismissPanel.animate().cancel()
         build()
         binding.dismissPanel.isVisible = true
         binding.sheet.isVisible = true
         binding.list.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
         binding.editor.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
-        binding.sheet.alpha = 0f
-        binding.sheet.translationY = -dp(10).toFloat()
-        binding.sheet.animate().alpha(1f).translationY(0f).setDuration(180).start()
+        binding.notesPanel.importantForAccessibility=View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+        binding.editorPanel.importantForAccessibility=View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+        binding.sheet.importantForAccessibility=View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
+        binding.dismissPanel.setBackgroundColor(if(settings.theme==1)0x55000000 else 0x22101828)
+        binding.sheet.pivotX=binding.sheet.width-dp(40).toFloat();binding.sheet.pivotY=0f
+        binding.sheet.alpha=if(host.motionEnabled())0f else 1f
+        binding.sheet.translationY=if(host.motionEnabled())-dp(8).toFloat() else 0f
+        binding.sheet.scaleX=if(host.motionEnabled()).94f else 1f;binding.sheet.scaleY=binding.sheet.scaleX
+        binding.dismissPanel.alpha=if(host.motionEnabled())0f else 1f
+        if(host.motionEnabled()) {binding.sheet.animate().alpha(1f).translationY(0f).scaleX(1f).scaleY(1f).setDuration(220).start();binding.dismissPanel.animate().alpha(1f).setDuration(180).start()}
         styleButtons()
     }
     private fun styleButtons() {
@@ -104,6 +129,7 @@ internal class ReadingChrome(
         binding.paste.ink = ink.text
         binding.speech.ink = if (panel == Panel.SPEECH || status.playing) ink.accent else ink.text
         binding.speech.isSelected = panel == Panel.SPEECH
+        binding.speech.playing=status.playing
         binding.settings.isSelected = panel == Panel.TYPE
         binding.speech.background = box(if (panel == Panel.SPEECH || status.playing) ink.tint else android.graphics.Color.TRANSPARENT,99)
         binding.settings.setTextColor(if (panel == Panel.TYPE) ink.accent else ink.text)
@@ -131,8 +157,8 @@ internal class ReadingChrome(
     }
     private fun build() {
         binding.panelContent.removeAllViews()
-        playButton = null; count = null; elapsed = null; duration = null; progress = null
-        speedButtons.clear(); seeking = false
+        playButton = null; modeButton = null; count = null; elapsed = null; duration = null; progress = null
+        speedButtons.clear();speedThumb=null;speedTrack=null; seeking = false
         binding.sheet.background = box(ink.card,24)
         binding.sheet.scrollTo(0,0)
         if (panel == Panel.TYPE) buildType() else if (panel == Panel.SPEECH) buildSpeech()
@@ -167,6 +193,7 @@ internal class ReadingChrome(
                 isSelected = selected; isClickable = true; isFocusable = true
                 contentDescription = label(res)
                 setOnClickListener { settingsChanged(null,null,index) }
+                pressFeedback()
             }
             option.addView(object : View(host) {
                 val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color=if(selected) ink.accent else ink.muted; strokeWidth=dp(2).toFloat(); strokeCap=Paint.Cap.ROUND }
@@ -189,6 +216,7 @@ internal class ReadingChrome(
                 isClickable=true; isFocusable=true; isSelected=selected
                 contentDescription=label(res)
                 setOnClickListener { settingsChanged(index,null,null) }
+                pressFeedback()
             }
             val ring = android.widget.FrameLayout(host).apply { background=box(ink.card,99,if(selected) ink.accent else null) }
             ring.addView(text(label(R.string.ui_aa),17f,colors.text).apply {
@@ -236,27 +264,44 @@ internal class ReadingChrome(
             controls.addView(wrap,LinearLayout.LayoutParams(0,dp(74),if(main)1.4f else 1f))
             return view
         }
-        button(Glyph.QUEUE,R.string.a11y_queue) { queue() }.apply { isEnabled=route?.page==Page.READER; alpha=if(isEnabled)1f else .3f }
+        modeButton=button(Glyph.REPEAT_OFF,R.string.a11y_full_once) { modeToast=true;command("cycleMode",Bundle.EMPTY) }.apply { tag="playbackMode" }
         button(Glyph.PREVIOUS,R.string.a11y_previous) { command("step",Bundle().apply { putInt("delta",-1) }) }
         playButton=button(Glyph.PLAY,R.string.a11y_play,true) { play() }.apply { tag="speechPlay" }
         button(Glyph.NEXT,R.string.a11y_next) { command("step",Bundle().apply { putInt("delta",1) }) }
         button(Glyph.STOP,R.string.a11y_stop) { command("stop",Bundle.EMPTY) }
         add(controls,margin=10)
-        val rates=row().apply { background=box(ink.panel,12); setPadding(dp(3),dp(3),dp(3),dp(3)) }
+        val track=android.widget.FrameLayout(host).apply {background=box(ink.panel,12)}
+        speedTrack=track
+        speedThumb=View(host).apply {background=box(ink.card,9)}.also {track.addView(it,android.widget.FrameLayout.LayoutParams(0,dp(40)).apply {leftMargin=dp(3);topMargin=dp(3)})}
+        val rates=row().apply {setPadding(dp(3),dp(3),dp(3),dp(3))}
         listOf(.8f,1f,1.1f,1.2f,1.3f).forEach { rate ->
             val button=text("${java.text.DecimalFormat("0.##",java.text.DecimalFormatSymbols(Locale.ROOT)).format(rate)}×").apply {
                 tag=rate; gravity=Gravity.CENTER; isClickable=true; isFocusable=true
                 contentDescription="${label(R.string.a11y_speed)} $text"
                 setOnClickListener { player()?.setPlaybackSpeed(rate); updateProgress() }
+                pressFeedback()
             }
             speedButtons += button
             rates.addView(button,LinearLayout.LayoutParams(0,dp(40),1f))
         }
-        add(rates,margin=10)
+        track.addView(rates,android.widget.FrameLayout.LayoutParams(-1,dp(46)))
+        track.addOnLayoutChangeListener {_,_,_,_,_,_,_,_,_->moveSpeedThumb(false)}
+        add(track,46,10)
         updateProgress()
     }
     fun updateProgress() {
         if (panel != Panel.SPEECH) return
+        modeButton?.apply {
+            glyph=when(status.mode) {
+                PlaybackMode.FULL_LOOP -> Glyph.REPEAT_ALL
+                PlaybackMode.PARAGRAPH_LOOP -> Glyph.REPEAT_ONE
+                PlaybackMode.FULL_ONCE -> Glyph.REPEAT_OFF
+            }
+            contentDescription=label(modeLabel(status.mode))
+            if(android.os.Build.VERSION.SDK_INT>=26) tooltipText=contentDescription
+            isSelected=status.mode!=PlaybackMode.FULL_ONCE
+            ink=if(status.mode==PlaybackMode.FULL_ONCE) this@ReadingChrome.ink.muted else this@ReadingChrome.ink.accent
+        }
         playButton?.glyph = if(status.playing) Glyph.PAUSE else if(status.failed || status.voiceMissing) Glyph.RETRY else Glyph.PLAY
         count?.text = when {
             status.failed || status.voiceMissing -> label(R.string.ui_retry)
@@ -276,15 +321,29 @@ internal class ReadingChrome(
             val selected=button.tag==speed
             button.isSelected=selected
             button.setTextColor(if(selected) ink.accent else ink.muted)
-            button.background=box(if(selected) ink.card else android.graphics.Color.TRANSPARENT,9)
+            button.background=null
             button.setTypeface(null,if(selected)Typeface.BOLD else Typeface.NORMAL)
         }
+        moveSpeedThumb(true)
+    }
+    private fun modeLabel(mode:PlaybackMode)=when(mode) {PlaybackMode.FULL_LOOP->R.string.a11y_full_loop;PlaybackMode.PARAGRAPH_LOOP->R.string.a11y_paragraph_loop;PlaybackMode.FULL_ONCE->R.string.a11y_full_once}
+    private fun moveSpeedThumb(animate:Boolean) {
+        val track=speedTrack ?: return;val thumb=speedThumb ?: return
+        if(track.width<=dp(6))return
+        val width=(track.width-dp(6))/5
+        if(thumb.layoutParams.width!=width) {thumb.layoutParams=thumb.layoutParams.apply {this.width=width}}
+        val index=speedButtons.indexOfFirst {it.tag==player()?.playbackParameters?.speed}.takeIf {it>=0} ?: 1
+        val target=(index*width).toFloat()
+        if(kotlin.math.abs(thumb.translationX-target)<.5f)return
+        thumb.animate().cancel()
+        if(animate&&host.motionEnabled())thumb.animate().translationX(target).setDuration(180).start() else thumb.translationX=target
     }
     private fun formatTime(ms: Long) = String.format(Locale.ROOT,"%d:%02d",ms/60000,ms/1000%60)
 }
 
 /** 用户提供的 HTML 顶栏配色，仅作用于控件和弹层，正文保持已有主题。 */
-private data class ChromeColors(val bg:Int,val text:Int,val muted:Int,val panel:Int,val card:Int,val accent:Int,val tint:Int,val line:Int) {
+internal data class ChromeColors(val bg:Int,val text:Int,val muted:Int,val panel:Int,val card:Int,val accent:Int,val tint:Int,val line:Int) {
+    fun tintOver(background:Int)=androidx.core.graphics.ColorUtils.compositeColors(tint,background)
     companion object {
         fun forTheme(theme:Int) = when(theme) {
             1 -> ChromeColors(0xff14161a.toInt(),0xffd9dbe0.toInt(),0xff80848d.toInt(),0xff22252b.toInt(),0xff1e2127.toInt(),0xff79b8e6.toInt(),0x2979b8e6,0xff2a2d34.toInt())

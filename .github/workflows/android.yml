@@ -60,13 +60,13 @@ jobs:
             adb shell wm density 540
             adb shell wm size
             adb shell wm density
-            bash ./gradlew --no-daemon --console=plain connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.newspaper.helper.NativeUiTest,com.newspaper.helper.TopBarUiTest -Pandroid.testInstrumentationRunnerArguments.expectedWidth=320
+            bash ./gradlew --no-daemon --console=plain connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.newspaper.helper.NativeUiTest,com.newspaper.helper.TopBarUiTest,com.newspaper.helper.NotesUiTest -Pandroid.testInstrumentationRunnerArguments.expectedWidth=320
             mkdir -p app/build/topbar-evidence/reports-320
             cp -r app/build/reports/androidTests/. app/build/topbar-evidence/reports-320/
             adb shell wm density 443
             adb shell wm size
             adb shell wm density
-            bash ./gradlew --no-daemon --console=plain connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.newspaper.helper.NativeUiTest,com.newspaper.helper.TopBarUiTest -Pandroid.testInstrumentationRunnerArguments.expectedWidth=390
+            bash ./gradlew --no-daemon --console=plain connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.newspaper.helper.NativeUiTest,com.newspaper.helper.TopBarUiTest,com.newspaper.helper.NotesUiTest -Pandroid.testInstrumentationRunnerArguments.expectedWidth=390
             mkdir -p app/build/topbar-evidence/reports-390
             cp -r app/build/reports/androidTests/. app/build/topbar-evidence/reports-390/
             adb pull /sdcard/Download/dubao-topbar-evidence app/build/topbar-evidence/screenshots
@@ -75,7 +75,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: dubao-2.0.3-debug-${{ github.sha }}
+          name: dubao-2.0.4-debug-${{ github.sha }}
           retention-days: 3
           path: |
             app/build/outputs/apk/debug/*.apk

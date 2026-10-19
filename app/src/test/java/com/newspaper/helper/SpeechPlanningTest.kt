@@ -11,9 +11,9 @@ class SpeechPlanningTest {
         override fun cancel()=Unit
         override fun close()=Unit
     }
-    @Test fun customTextNeverSelectsOnlineButAllFivePapersDo() {
-        assertFalse(SpeechPolicy.online(Segmenter.custom("我的私人文本。")))
-        Paper.entries.forEach { assertTrue(SpeechPolicy.online(article("正文。").copy(story=Story(it,"https://example.org/${it.name}","")))) }
+    @Test fun customTextKeepsPrivateAudioWhileAllFivePapersUseSharedCache() {
+        assertTrue(SpeechPolicy.privateText(Segmenter.custom("我的私人文本。")))
+        Paper.entries.forEach { assertFalse(SpeechPolicy.privateText(article("正文。").copy(story=Story(it,"https://example.org/${it.name}","")))) }
     }
     @Test fun firstChunkIsACompleteShortSentenceAndQuotesStayAttached() {
         val text="负责人表示：“先核实数据，再作出判断。”"+"完善公共服务，持续改进工作方法。".repeat(80)

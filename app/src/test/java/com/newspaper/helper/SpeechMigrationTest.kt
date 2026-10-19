@@ -10,6 +10,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.first
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk=[28])
@@ -31,7 +33,7 @@ class SpeechMigrationTest {
                 override fun onUpgrade(db:SupportSQLiteDatabase,oldVersion:Int,newVersion:Int)=Unit
             }).build())
         old.writableDatabase;old.close()
-        val reader=Room.databaseBuilder(context,ReaderDatabase::class.java,name).addMigrations(ReaderDatabase.MIGRATION_1_2)
+        val reader=Room.databaseBuilder(context,ReaderDatabase::class.java,name).addMigrations(ReaderDatabase.MIGRATION_1_2,ReaderDatabase.MIGRATION_2_3)
             .allowMainThreadQueries().build()
         try {
             val db=reader.openHelper.writableDatabase
@@ -43,6 +45,26 @@ class SpeechMigrationTest {
             }
             db.query("SELECT payload FROM articles").use { assertTrue(it.moveToFirst());assertEquals("body",it.getString(0)) }
             db.query("SELECT payload FROM playback_queue").use { assertTrue(it.moveToFirst());assertEquals("queue",it.getString(0)) }
+            db.query("SELECT count(*) FROM pasted_notes").use {assertTrue(it.moveToFirst());assertEquals(0,it.getInt(0))}
         } finally { reader.close();context.deleteDatabase(name) }
+    }
+    @Test fun notesRetainFullTextPinOrderAndDeleteOnlySelectedRows() = runBlocking {
+        val context=RuntimeEnvironment.getApplication()
+        val database=Room.inMemoryDatabaseBuilder(context,ReaderDatabase::class.java).allowMainThreadQueries().build()
+        try {
+            val dao=database.reader();val longText="完整正文😀\n".repeat(1000)
+            dao.saveArticle(ArticleRecord("news","old article",1))
+            dao.saveNote(PastedNote("first","标题",longText,1,2))
+            dao.saveNote(PastedNote("second","另一条","原文",2,3))
+            assertEquals(longText,dao.note("first")!!.content)
+            assertTrue(dao.notes().first().first {it.id=="first"}.preview.codePointCount(0,dao.notes().first().first {it.id=="first"}.preview.length)<=240)
+            dao.pinNotes(listOf("first"),true)
+            assertEquals("first",dao.notes().first().first().id)
+            dao.saveNote(dao.note("first")!!.copy(title="编辑后的标题",updated=4))
+            assertEquals(2,dao.notes().first().size)
+            dao.deleteNotes(listOf("second"))
+            assertEquals("first",dao.notes().first().single().id)
+            assertEquals("old article",dao.article("news")!!.payload)
+        } finally {database.close()}
     }
 }
