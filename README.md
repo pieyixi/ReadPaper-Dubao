@@ -1,6 +1,8 @@
 # 读报
 
-Kotlin 原生 Android 读报器，保留学习时报、组织人事报、人民日报、南方日报、求是五个来源。新闻默认使用免费的云扬在线自然语音，自定义粘贴文本默认本机朗读。包名仍为 `com.newspaper.helper`，版本为 `2.0.1`（versionCode 4）。
+Kotlin 原生 Android 读报器，保留学习时报、组织人事报、人民日报、南方日报、求是五个来源。新闻默认使用免费的云扬在线自然语音，自定义粘贴文本默认本机朗读。包名仍为 `com.newspaper.helper`，版本为 `2.0.2`（versionCode 5）。
+
+首页仅保留粘贴与设置，正文/粘贴页保留耳机朗读与设置；日期、年份、期号、目录不显示右侧功能按钮。底部播放条已移除，控制放入顶栏悬浮弹层。变更及验证记录见 [TOPBAR-UPDATE.md](TOPBAR-UPDATE.md)。
 
 业务页面使用 View/XML、ViewBinding 和 RecyclerView/TextView。`app/src/main/assets/www/` 完整保留为迁移前的文案与视觉参照，不再作为业务入口；`test.html` 仍只是旧调试页面。自动化结果与尚未验证的项目见 [NATIVE-ACCEPTANCE.md](NATIVE-ACCEPTANCE.md)，实现约定见 [SPEC.md](SPEC.md)。
 
@@ -19,7 +21,7 @@ bash scripts/cloud-build.sh checks
 
 在同一个 checkout 中串行运行 Gradle，避免两个构建同时改写产物。Debug APK 为 `app/build/outputs/apk/debug/app-debug.apk`；lint 与 JVM 报告在 `app/build/reports/`。源码仓库不包含 APK、SDK、缓存或签名文件。
 
-也可使用仓库的 `Android build and speech checks` GitHub Actions：标准 Ubuntu 云端运行器负责 Debug 构建、单元测试、lint、文案审计和独立的在线语音抽查；在线抽查成功后运行 API 28 模拟器播放检查。APK 与报告作为短期附件保存，不需要在用户电脑下载构建依赖。构建成功、外部接口可用、模拟器通过和人耳听音是不同结论。
+也可使用仓库的 `Android build and speech checks` GitHub Actions：标准 Ubuntu 云端运行器负责 Debug 构建、单元测试、lint、文案审计，以及 API 28 模拟器的 320/390dp 原生界面检查；独立在线语音抽查成功后再运行真实播放检查。APK 与报告作为短期附件保存，不需要在用户电脑下载构建依赖。构建成功、外部接口可用、模拟器通过和人耳听音是不同结论。
 
 真实网站联网检查单独执行，避免离线测试依赖官网可用性：
 
