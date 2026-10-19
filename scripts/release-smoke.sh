@@ -3,7 +3,9 @@
 set -euo pipefail
 EVIDENCE=app/build/release-evidence
 mkdir -p "$EVIDENCE"
-adb uninstall com.newspaper.helper >/dev/null
+if adb shell pm path com.newspaper.helper | grep -q '^package:'; then
+  adb uninstall com.newspaper.helper >/dev/null
+fi
 adb install app/build/outputs/apk/release/app-release.apk
 adb logcat -c
 adb shell am force-stop com.newspaper.helper

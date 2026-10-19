@@ -1,8 +1,18 @@
 name: Signed Release APK on demand
 on:
   workflow_dispatch:
+    inputs:
+      reuse_run:
+        description: 'Reuse a successful signed APK build from this workflow (optional run ID)'
+        type: string
+        default: ''
+      device_smoke:
+        description: 'Verify this exact signed APK on Android before delivery'
+        type: boolean
+        default: false
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: release-apk-${{ github.ref }}
   cancel-in-progress: true
@@ -12,6 +22,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -25,7 +37,29 @@ jobs:
         run: sdkmanager 'platforms;android-34' 'build-tools;34.0.0'
       - name: Check UI copy
         run: python3 scripts/audit-ui.py
+      - name: Verify source build and unchanged application
+        if: inputs.reuse_run != ''
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN: ${{ inputs.reuse_run }}
+        run: |
+          [[ "$SOURCE_RUN" =~ ^[0-9]+$ ]]
+          metadata="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN")"
+          sha="$(jq -er 'select(.conclusion == "success" and .head_branch == "main" and .path == ".github/workflows/release-apk.yml") | .head_sha' <<< "$metadata")"
+          git merge-base --is-ancestor "$sha" HEAD
+          git diff --exit-code "$sha" HEAD -- app build.gradle.kts gradle.properties settings.gradle.kts gradle scripts/verify-release.py
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+      - name: Retrieve exact previously delivered APK
+        if: inputs.reuse_run != ''
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.reuse_run }}
+          name: dubao-2.0.0-quick-release-${{ steps.source.outputs.sha }}
+          path: app/build
       - name: Build and verify original-key Release
+        if: inputs.reuse_run == ''
         env:
           DUBAO_KEYSTORE_BASE64: ${{ secrets.DUBAO_KEYSTORE_BASE64 }}
           DUBAO_STORE_PASSWORD: ${{ secrets.DUBAO_STORE_PASSWORD }}
@@ -33,7 +67,28 @@ jobs:
           DUBAO_KEY_ALIAS: ${{ secrets.DUBAO_KEY_ALIAS }}
         run: |
           bash scripts/cloud-build.sh release
-          python3 scripts/verify-release.py app/build/outputs/apk/release/app-release.apk
+      - name: Verify signed Release integrity
+        run: python3 scripts/verify-release.py app/build/outputs/apk/release/app-release.apk
+      - name: Enable cloud emulator acceleration
+        if: inputs.device_smoke
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Cold start the exact signed Release APK
+        if: inputs.device_smoke
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 28
+          arch: x86_64
+          target: default
+          profile: pixel_2
+          disable-animations: false
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -skin 1080x2160
+          script: |
+            adb shell wm size reset
+            adb shell wm density 443
+            bash scripts/release-smoke.sh
       - name: Deliver signed APK before device acceptance finishes
         uses: actions/upload-artifact@v4
         with:
@@ -42,7 +97,7 @@ jobs:
           if-no-files-found: error
           path: |
             app/build/outputs/apk/release/app-release.apk
-            app/build/release-evidence/verification.json
+            app/build/release-evidence/
             app/build/reports/lint-results-release.*
       - name: State validation boundary
         run: echo 'Original signature, package/version, non-debuggable flag and Release lint checked. Full device and speech acceptance runs separately in Android build and speech checks.' >> "$GITHUB_STEP_SUMMARY"
