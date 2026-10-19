@@ -1,0 +1,48 @@
+name: Signed Release APK on demand
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: release-apk-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - name: Prepare Android platform in cloud
+        run: sdkmanager 'platforms;android-34' 'build-tools;34.0.0'
+      - name: Check UI copy
+        run: python3 scripts/audit-ui.py
+      - name: Build and verify original-key Release
+        env:
+          DUBAO_KEYSTORE_BASE64: ${{ secrets.DUBAO_KEYSTORE_BASE64 }}
+          DUBAO_STORE_PASSWORD: ${{ secrets.DUBAO_STORE_PASSWORD }}
+          DUBAO_KEY_PASSWORD: ${{ secrets.DUBAO_KEY_PASSWORD }}
+          DUBAO_KEY_ALIAS: ${{ secrets.DUBAO_KEY_ALIAS }}
+        run: |
+          bash scripts/cloud-build.sh release
+          python3 scripts/verify-release.py app/build/outputs/apk/release/app-release.apk
+      - name: Deliver signed APK before device acceptance finishes
+        uses: actions/upload-artifact@v4
+        with:
+          name: dubao-2.0.0-quick-release-${{ github.sha }}
+          retention-days: 7
+          if-no-files-found: error
+          path: |
+            app/build/outputs/apk/release/app-release.apk
+            app/build/release-evidence/verification.json
+            app/build/reports/lint-results-release.*
+      - name: State validation boundary
+        run: echo 'Original signature, package/version, non-debuggable flag and Release lint checked. Full device and speech acceptance runs separately in Android build and speech checks.' >> "$GITHUB_STEP_SUMMARY"
