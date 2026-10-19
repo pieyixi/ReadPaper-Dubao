@@ -95,7 +95,7 @@ class MainActivity : AppCompatActivity() {
                 speechRevision++
                 model.updateDraft(binding.noteTitle.text.toString(),s?.toString().orEmpty())
                 noteMetadata()
-                if (status.article.startsWith("custom:")) command("stop")
+                if (status.article.startsWith("custom:") && status.noteId==current.route.noteId) command("stop")
             }
             override fun afterTextChanged(s: Editable?) = Unit
         })
@@ -106,7 +106,7 @@ class MainActivity : AppCompatActivity() {
                 if(bindingDraft)return
                 speechRevision++
                 model.updateDraft(s?.toString().orEmpty(),binding.editor.text.toString());noteMetadata()
-                if(status.article.startsWith("custom:"))command("stop")
+                if(status.article.startsWith("custom:")&&status.noteId==current.route.noteId)command("stop")
             }
         })
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) { override fun handleOnBackPressed() { back() } })
@@ -120,7 +120,7 @@ class MainActivity : AppCompatActivity() {
                     if (current.route.page == Page.CUSTOM) {
                         val edit = binding.editor.text
                         edit.getSpans(0,edit.length,android.text.style.BackgroundColorSpan::class.java).forEach { edit.removeSpan(it) }
-                        val rawLine = playback.block.removePrefix("custom-").toIntOrNull()
+                        val rawLine = if(playback.noteId==current.route.noteId)playback.block.removePrefix("custom-").toIntOrNull() else null
                         val line=rawLine?.minus(if(model.draftTitle.isNotBlank())1 else 0)
                         binding.noteTitle.setBackgroundColor(if(line==-1 && playback.article.startsWith("custom:")) if(appearance.theme==1)0xff273848.toInt() else 0xffedf3f8.toInt() else Color.TRANSPARENT)
                         if (line != null && line>=0 && playback.article.startsWith("custom:")) {
@@ -160,7 +160,7 @@ class MainActivity : AppCompatActivity() {
         if (!model.back()) finish()
     }
     fun expandFrom(source:View,color:Int=ChromeColors.forTheme(appearance.theme).accent) {motion.expand(source,color)}
-    fun deletedNotes(ids:Set<String>) {if(status.article.startsWith("custom:"))command("stop")}
+    fun deletedNotes(ids:Set<String>) {if(status.noteId in ids)command("stop")}
     fun toolbarScrolled(scrolled:Boolean) {binding.toolbar.elevation=if(scrolled)dp(1).toFloat() else 0f}
     private fun noteMetadata() {
         val title=binding.noteTitle.text.toString();val body=binding.editor.text.toString()
@@ -216,7 +216,7 @@ class MainActivity : AppCompatActivity() {
                             File(directory,name).writeText(draft)
                             name
                         }
-                        if(revision==speechRevision)sendSpeech(SpeechRequest(custom = name))
+                        if(revision==speechRevision)sendSpeech(SpeechRequest(custom = name,noteId=current.route.noteId))
                         else withContext(Dispatchers.IO) {File(File(cacheDir,"speech-input"),name).delete()}
                     }
                 }

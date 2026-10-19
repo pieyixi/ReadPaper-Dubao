@@ -56,6 +56,7 @@ class OnlinePlaybackTest {
             }
             waitFor("Pasted text did not play") {PlaybackSignals.state.value.article.startsWith("custom:")&&main {player.isPlaying&&player.currentPosition>100}}
             main {player.pause()}
+            assertEquals(noteId,PlaybackSignals.state.value.noteId)
             val path=main {checkNotNull(player.currentMediaItem?.localConfiguration?.uri?.path)}
             assertTrue("Pasted text fell back to system speech",path.endsWith(".mp3"))
             assertTrue("Pasted audio entered shared cache",File(path).name.startsWith("private-"))

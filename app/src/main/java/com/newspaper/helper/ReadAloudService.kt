@@ -35,12 +35,12 @@ import kotlinx.coroutines.withTimeout
 import java.io.File
 
 data class PlaybackStatus(val article: String = "", val block: String = "", val playing: Boolean = false, val preparing: Boolean = false, val voiceMissing: Boolean = false, val failed: Boolean = false,
-    val segmentIndex: Int = 0, val segmentCount: Int = 0, val mode:PlaybackMode = PlaybackMode.FULL_ONCE)
+    val segmentIndex: Int = 0, val segmentCount: Int = 0, val mode:PlaybackMode = PlaybackMode.FULL_ONCE,val noteId:String?=null)
 object PlaybackSignals {
     internal val mutable = MutableStateFlow(PlaybackStatus())
     val state = mutable.asStateFlow()
 }
-data class SpeechRequest(val stories: List<Story> = emptyList(), val custom: String? = null, val append: Boolean = false)
+data class SpeechRequest(val stories: List<Story> = emptyList(), val custom: String? = null, val append: Boolean = false,val noteId:String?=null)
 data class QueueSnapshot(val stories: List<Story>, val index: Int)
 
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
@@ -66,6 +66,7 @@ class ReadAloudService : MediaSessionService() {
     private var desiredPlay = true
     private var resumeMs = 0L
     private var custom = false
+    private var customNoteId:String?=null
     private var resetting = false
     private var contentReady = false
     private var mode = PlaybackMode.FULL_ONCE
@@ -220,6 +221,7 @@ class ReadAloudService : MediaSessionService() {
         desiredPlay = true
         queue.clear(); queue += request.stories; queueIndex = 0
         custom = request.custom != null
+        customNoteId=if(custom)request.noteId else null
         if (request.custom != null) {
             work = scope.launch {
                 try {
@@ -248,6 +250,7 @@ class ReadAloudService : MediaSessionService() {
         }
     }
     private fun loadStory(story: Story, restore: Boolean) {
+        customNoteId=null
         work?.cancel(); engine.cancel(); generation++
         val token = generation
         resetPlayer()
@@ -284,7 +287,7 @@ class ReadAloudService : MediaSessionService() {
         paragraph=PlaybackBounds.paragraph(segments,baseSegment)
         contentReady=true
         speechFailed=false;voiceMissing=false
-        PlaybackSignals.mutable.value = PlaybackStatus(article = loaded.story.url, preparing = segments.isNotEmpty(),mode=mode)
+        PlaybackSignals.mutable.value = PlaybackStatus(article = loaded.story.url, preparing = segments.isNotEmpty(),mode=mode,noteId=customNoteId)
         // 首段完成即可播放；预取按可播放时长计量，并限制为最多八段。
         work = null
         fillAhead()
@@ -410,7 +413,7 @@ class ReadAloudService : MediaSessionService() {
         val segment = segments.getOrNull(baseSegment + maxOf(0, player.currentMediaItemIndex))
         PlaybackSignals.mutable.value = PlaybackStatus(article?.story?.url.orEmpty(), segment?.blockId.orEmpty(), player.isPlaying,
             player.mediaItemCount == 0 && work?.isActive == true && !speechFailed && !voiceMissing,voiceMissing,speechFailed,
-            currentSegmentIndex(),segments.size,mode)
+            currentSegmentIndex(),segments.size,mode,customNoteId)
     }
     private fun reportFailure(error:Exception,url:String=article?.story?.url.orEmpty()) {
         voiceMissing=error is VoiceUnavailable;speechFailed=!voiceMissing
@@ -438,7 +441,7 @@ class ReadAloudService : MediaSessionService() {
         persist(); work?.cancel(); work = null; engine.cancel(); generation++
         val privateFiles=if(custom) (0 until player.mediaItemCount).mapNotNull { player.getMediaItemAt(it).localConfiguration?.uri?.path } else emptyList()
         // 停止期间禁止清空媒体项的回调再次触发预取，避免旧稿在停止后重新入队。
-        resetPlayer(); contentReady=false; segments = emptyList(); article = null; queue.clear()
+        resetPlayer(); contentReady=false; segments = emptyList(); article = null;customNoteId=null; queue.clear()
         speechFailed=false;voiceMissing=false
         PlaybackSignals.mutable.value = PlaybackStatus(mode=mode)
         endPreparingIfEmpty()
