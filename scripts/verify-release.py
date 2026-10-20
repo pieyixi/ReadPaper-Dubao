@@ -30,7 +30,7 @@ def verify(apk):
         text=True,
     )
     package = re.search(r"package: name='([^']+)' versionCode='([^']+)' versionName='([^']+)'", badging)
-    if not package or package.groups() != ("com.newspaper.helper", "10", "2.0.2"):
+    if not package or package.groups() != ("com.newspaper.helper", "11", "2.0.3"):
         raise RuntimeError("Unexpected Release application ID or version")
     if "application-debuggable" in badging:
         raise RuntimeError("Refusing to publish a debuggable APK")

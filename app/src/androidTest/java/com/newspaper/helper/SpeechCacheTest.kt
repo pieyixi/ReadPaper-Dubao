@@ -37,6 +37,45 @@ class SpeechCacheTest {
     private fun part(article:String,index:Int=0,text:String="第${index}段完整正文。"):SpeechSegment = SpeechSegment(article,"block-$index",text,index)
     private fun temp()=File(app.cacheDir,"cache-regression-${UUID.randomUUID()}").apply {mkdirs()}
 
+    @Test fun skippingCaptionsKeepsAlreadySynthesizedBodyAudioAvailableOffline() = runBlocking {
+        val root=temp()
+        try {
+            val url="https://example.org/caption-cache-${UUID.randomUUID()}"
+            val article=Article(Story(Paper.PEOPLE,url,""),ContentParser.blocks("<p>第一段正文。</p><figure><img src='a.jpg'><figcaption>配图说明。张三 摄</figcaption></figure><p>第二段正文。</p>",url))
+            val old=article.copy(blocks=article.blocks.map {it.copy(omitFromSpeech=false)})
+            val engine=CountingEngine();val cache=SpeechAudioCache(root)
+            val cached=Segmenter.split(old).associate {it.text to cache.render(it,engine,false).file.absolutePath}
+            assertEquals(3,engine.calls)
+            engine.offline=true
+            val now=Segmenter.split(article)
+            assertEquals(2,now.size)
+            now.forEach {assertEquals(cached[it.text],cache.render(it,engine,false).file.absolutePath)}
+            assertEquals("Changing speech selection invalidated cached body audio",3,engine.calls)
+            assertEquals(4,article.blocks.size)
+            assertEquals(1,article.blocks.count {it.omitFromSpeech})
+        } finally {root.deleteRecursively()}
+    }
+
+    @Test fun annotationUpgradePreservesReadingPositionAndKeepsRecentBodyReadableWhenOffline() = runBlocking {
+        val url="https://www.qstheory.cn/20261020/${UUID.randomUUID()}/c.html"
+        val story=Story(Paper.QIUSHI,url,"")
+        val raw="<div id='detailContent'><p>完整正文。</p><figure><img src='a.jpg'><figcaption>配图说明。</figcaption></figure></div>"
+        val current=ContentParser.article(story,raw)
+        val old=current.copy(parserVersion=2,blocks=current.blocks.map {it.copy(omitFromSpeech=false)})
+        val position=ReadingPosition(url,block=5,offset=17,audioBlock=current.blocks.first().id,audioOffset=3)
+        var calls=0
+        val online=ArticleRepository(app,NewsSources(object:Transport {override suspend fun load(url:String,json:String?):String {calls++;return raw}}))
+        online.dao.saveArticle(ArticleRecord(url,jsonCodec.toJson(old),System.currentTimeMillis()))
+        online.dao.savePosition(position)
+        assertTrue(online.article(story).blocks.any {it.omitFromSpeech})
+        assertEquals(position,online.dao.position(url))
+        online.article(story);assertEquals(1,calls)
+        online.dao.saveArticle(ArticleRecord(url,jsonCodec.toJson(old),System.currentTimeMillis()))
+        val offline=ArticleRepository(app,NewsSources(object:Transport {override suspend fun load(url:String,json:String?):String {throw java.io.IOException("Controlled offline annotation upgrade")}}))
+        assertEquals(old,offline.article(story))
+        assertEquals(position,online.dao.position(url))
+    }
+
     @Test fun completeActiveArticleSurvivesEvictionAndReplaysOfflineAfterCacheRecreation() = runBlocking {
         val root=temp()
         try {

@@ -12,8 +12,13 @@ import kotlin.coroutines.coroutineContext
 
 internal object SpeechPolicy {
     fun privateText(article:Article) = article.story.url.startsWith("custom:")
-    fun fingerprint(article:Article,engine:SpeechEngine) = stableId(
-        "${Segmenter.VERSION}|${engine.cacheIdentity}|"+article.blocks.joinToString("\n") { "${it.id}|${it.kind}|${it.text}" })
+    fun fingerprint(article:Article,engine:SpeechEngine):String {
+        val original="${Segmenter.VERSION}|${engine.cacheIdentity}|"+article.blocks.joinToString("\n") { "${it.id}|${it.kind}|${it.text}" }
+        // 仅队列选择变化时失效片内时间；分段/声音相同的正文磁盘音频保持原键。
+        val omitted=if(privateText(article) || article.blocks.none {it.omitFromSpeech})""
+            else "|omitted:"+article.blocks.filter {it.omitFromSpeech}.joinToString(",") {it.id}
+        return stableId(original+omitted)
+    }
     fun resume(position:ReadingPosition?,article:Article,segments:List<SpeechSegment>,fingerprint:String):Pair<Int,Long> {
         if(position==null || segments.isEmpty()) return 0 to 0L
         if(position.audioFingerprint==fingerprint && position.segment in segments.indices)
@@ -22,6 +27,12 @@ internal object SpeechPolicy {
             else Segmenter.legacyAnchor(article,position.segment)
         val index=anchor?.let { (block,offset) ->
             segments.indexOfLast { it.blockId==block && it.start<=offset }.takeIf { it>=0 }
+                ?: article.blocks.indexOfFirst {it.id==block}.takeIf {it>=0}?.let {removed->
+                    // 旧位置恰在图注时，接到之后的正文；末尾图注则回到最后一个可朗读自然段。
+                    val order=article.blocks.mapIndexed {index,b->b.id to index}.toMap()
+                    segments.indexOfFirst {(order[it.blockId] ?: -1)>removed}.takeIf {it>=0}
+                        ?: segments.lastOrNull()?.blockId?.let {last->segments.indexOfFirst {it.blockId==last}}
+                }
         } ?: 0
         return index to 0L
     }

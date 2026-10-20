@@ -7,7 +7,7 @@ import org.jsoup.nodes.TextNode
 import java.net.URI
 
 object ContentParser {
-    const val VERSION=2
+    const val VERSION=3
     fun safeUrl(base: String, raw: String): String? = runCatching {
         val u = URI(base).resolve(raw.trim()).normalize()
         if (u.scheme !in listOf("http", "https") || u.host.isNullOrBlank() || u.userInfo != null) null
@@ -18,23 +18,25 @@ object ContentParser {
         val root = Jsoup.parseBodyFragment(html, base).body()
         // 只移除明确的外围结构，不按新闻中的“广告、公告、债权”等词删正文。
         root.select("script,style,iframe,nav,header,footer,aside,form,button,.font_change,.share,.tool,.tools,.toolbar,.prev-next,.related,.copyright").remove()
+        val captions=CaptionRecognition.identify(root,base)
         val result = mutableListOf<BodyBlock>()
-        fun add(kind: BlockKind, text: String = "", url: String = "", parent: String = "") {
+        fun add(kind: BlockKind, text: String = "", url: String = "", parent: String = "",omit:Boolean=false) {
             val clean = text.trim(' ', '\t', '\n', '\r', '\u00a0', '\u3000')
             if (clean.isEmpty() && url.isEmpty()) return
-            result += BodyBlock(stableId("$base|${result.size}|$kind|$clean|$url"), kind, clean, url, parent)
+            result += BodyBlock(stableId("$base|${result.size}|$kind|$clean|$url"), kind, clean, url, parent,omit)
         }
-        fun visit(node: Node, inherited: BlockKind = BlockKind.PARAGRAPH, parent: String = "") {
-            if (node is TextNode) { add(inherited, node.text(), parent = parent); return }
+        fun visit(node: Node, inherited: BlockKind = BlockKind.PARAGRAPH, parent: String = "",inheritedOmit:Boolean=false) {
+            if (node is TextNode) { add(inherited, node.text(), parent = parent,omit=inheritedOmit); return }
             if (node !is Element) return
+            val omit=inheritedOmit || node in captions
             if (node.tagName() == "img") {
                 val url = safeUrl(base, node.attr("src").ifBlank { node.attr("data-src") }) ?: return
-                add(BlockKind.IMAGE, url = url, parent = parent)
+                add(BlockKind.IMAGE, url = url, parent = parent,omit=omit)
                 return
             }
             if (node.tagName() == "table") {
                 val rows = node.select("tr").map { row -> row.select("th,td").joinToString("\t") { it.text() } }
-                add(BlockKind.TABLE, rows.joinToString("\n"), parent = parent)
+                add(BlockKind.TABLE, rows.joinToString("\n"), parent = parent,omit=omit)
                 node.select("img").forEach { visit(it, parent = result.lastOrNull()?.id.orEmpty()) }
                 return
             }
@@ -48,12 +50,12 @@ object ContentParser {
             val group = if (node.tagName() in listOf("figure", "ul", "ol", "blockquote")) stableId("$base|group|${result.size}") else parent
             // 合并内联文本，但在图片、表格和块级边界立即刷新，保留原始交错顺序。
             val text = StringBuilder()
-            fun flush() { add(kind, text.toString(), parent = group); text.clear() }
+            fun flush() { add(kind, text.toString(), parent = group,omit=omit); text.clear() }
             fun inline(child: Node) {
                 if (child is TextNode) text.append(child.text())
                 else if (child is Element) {
                     if (child.tagName() == "br") text.append('\n')
-                    else if (child.isBlock || child.tagName() == "img") { flush(); visit(child, kind, group) }
+                    else if (child.isBlock || child.tagName() == "img") { flush(); visit(child, kind, group,omit) }
                     else child.childNodes().forEach { inline(it) }
                 }
             }

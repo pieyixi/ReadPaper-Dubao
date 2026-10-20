@@ -295,6 +295,7 @@ class ReadAloudService : MediaSessionService() {
     private suspend fun begin(loaded: Article, restore: Boolean,startBlock:String?=null) {
         article = loaded
         segments = withContext(Dispatchers.Default) { Segmenter.split(loaded) }
+        if(segments.isEmpty()) {desiredPlay=false;player.pause()}
         durations=LongArray(segments.size)
         // 正文和便签都使用本机持久音频；私有目录不参与系统云备份，停止不清除已合成片段。
         usingOnline=true
@@ -321,11 +322,11 @@ class ReadAloudService : MediaSessionService() {
         PlaybackSignals.mutable.value = PlaybackStatus(article = loaded.story.url, preparing = segments.isNotEmpty(),mode=mode,noteId=customNoteId,story=loaded.story,playWhenReady=desiredPlay&&segments.isNotEmpty())
         // 首段完成即可播放；预取按可播放时长计量，并限制为最多八段。
         work = null
-        fillAhead()
+        if(segments.isEmpty())endPreparingIfEmpty() else fillAhead()
     }
     private suspend fun prepareEngine(loaded:Article) {
         val sample=withContext(Dispatchers.Default) {
-            loaded.blocks.firstOrNull { block -> block.text.any { it.code in 0x3400..0x9fff } }?.text
+            segments.firstOrNull { segment -> segment.text.any { it.code in 0x3400..0x9fff } }?.text
                 ?: segments.firstOrNull()?.text.orEmpty()
         }
         val selectedEngine=engine

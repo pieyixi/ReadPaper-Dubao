@@ -84,12 +84,19 @@ class ArticleRepository(context: Context, val sources: NewsSources = NewsSources
     val dao = ReaderDatabase.get(context).reader()
     suspend fun article(story: Story, refresh: Boolean = false): Article = withContext(Dispatchers.IO) {
         val record = dao.article(story.url)
+        var compatibleReading:Article?=null
         if(!refresh && record!=null && System.currentTimeMillis()-record.fetched<30*60*1000) {
             val cached=jsonCodec.fromJson(record.payload,Article::class.java)
-            // 升级后仅让旧求是解析缓存重新获取，不能继续展示旧页尾，也不清除便签、位置或音频缓存。
-            if(story.paper!=Paper.QIUSHI || cached.parserVersion==ContentParser.VERSION)return@withContext cached
+            // 仅升级正文的图注标记；保留便签、阅读锚点和已获取的正文音频。
+            if(cached.parserVersion==ContentParser.VERSION)return@withContext cached
+            compatibleReading=cached
         }
-        val article = sources.article(story)
+        val article = try {sources.article(story)}
+        catch(e:kotlinx.coroutines.CancellationException) {throw e}
+        catch(e:java.io.IOException) {
+            // 标记升级遇到断网时仍可读有效旧缓存；不猜测未知图注、也不妨碍正文阅读。
+            compatibleReading ?: throw e
+        }
         dao.saveArticle(ArticleRecord(story.url, jsonCodec.toJson(article), System.currentTimeMillis()))
         if (dao.position(story.url) == null) dao.savePosition(ReadingPosition(story.url))
         article

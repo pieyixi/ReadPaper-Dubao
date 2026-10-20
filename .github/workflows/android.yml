@@ -70,13 +70,13 @@ jobs:
             adb shell wm density 540
             adb shell wm size
             adb shell wm density
-            bash ./gradlew --no-daemon --console=plain connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.newspaper.helper.NativeUiTest,com.newspaper.helper.TopBarUiTest,com.newspaper.helper.NotesUiTest,com.newspaper.helper.NavigationTransitionTest -Pandroid.testInstrumentationRunnerArguments.expectedWidth=320
+            bash ./gradlew --no-daemon --console=plain connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.newspaper.helper.NativeUiTest,com.newspaper.helper.TopBarUiTest,com.newspaper.helper.NotesUiTest,com.newspaper.helper.NavigationTransitionTest,com.newspaper.helper.CaptionReadingUiTest -Pandroid.testInstrumentationRunnerArguments.expectedWidth=320
             mkdir -p app/build/topbar-evidence/reports-320
             cp -r app/build/reports/androidTests/. app/build/topbar-evidence/reports-320/
             adb shell wm density 443
             adb shell wm size
             adb shell wm density
-            bash ./gradlew --no-daemon --console=plain connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.newspaper.helper.NativeUiTest,com.newspaper.helper.TopBarUiTest,com.newspaper.helper.NotesUiTest,com.newspaper.helper.NavigationTransitionTest -Pandroid.testInstrumentationRunnerArguments.expectedWidth=390
+            bash ./gradlew --no-daemon --console=plain connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.newspaper.helper.NativeUiTest,com.newspaper.helper.TopBarUiTest,com.newspaper.helper.NotesUiTest,com.newspaper.helper.NavigationTransitionTest,com.newspaper.helper.CaptionReadingUiTest -Pandroid.testInstrumentationRunnerArguments.expectedWidth=390
             mkdir -p app/build/topbar-evidence/reports-390
             cp -r app/build/reports/androidTests/. app/build/topbar-evidence/reports-390/
             adb shell settings put global animator_duration_scale 1
@@ -98,7 +98,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: dubao-2.0.2-validation-${{ github.sha }}
+          name: dubao-2.0.3-validation-${{ github.sha }}
           retention-days: 3
           path: |
             app/build/outputs/apk/debug/*.apk
@@ -116,19 +116,19 @@ jobs:
         if: success() && github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
         with:
-          name: dubao-2.0.2-release-${{ github.sha }}
+          name: dubao-2.0.3-release-${{ github.sha }}
           retention-days: 7
           path: |
             app/build/outputs/apk/release/app-release.apk
             app/build/release-evidence/verification.json
           if-no-files-found: error
-      - name: Publish verified 2.0.2 Release
+      - name: Publish verified 2.0.3 Release
         if: success() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && steps.online.outcome == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           python3 scripts/prepare-release.py
-          if gh release view v2.0.2 >/dev/null 2>&1; then
+          if gh release view v2.0.3 >/dev/null 2>&1; then
             echo 'Release already exists; keeping the published assets.'
             exit 0
           fi
@@ -137,10 +137,10 @@ jobs:
             echo 'A newer main commit exists; leaving publication to its verified build.'
             exit 0
           fi
-          gh release create v2.0.2 \
-            --target "$GITHUB_SHA" --title '读报 2.0.2' --latest \
+          gh release create v2.0.3 \
+            --target "$GITHUB_SHA" --title '读报 2.0.3' --latest \
             --notes-file app/build/release-evidence/publish/release-validation.md \
-            app/build/release-evidence/publish/dubao-2.0.2-release.apk \
-            app/build/release-evidence/publish/dubao-2.0.2-release.apk.sha256 \
+            app/build/release-evidence/publish/dubao-2.0.3-release.apk \
+            app/build/release-evidence/publish/dubao-2.0.3-release.apk.sha256 \
             app/build/release-evidence/publish/release-validation.json \
             app/build/release-evidence/publish/release-validation.md

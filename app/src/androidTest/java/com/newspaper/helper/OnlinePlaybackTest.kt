@@ -36,6 +36,45 @@ class OnlinePlaybackTest {
         fail("$message: ${PlaybackSignals.state.value}")
     }
     private fun shell(command:String) = android.os.ParcelFileDescriptor.AutoCloseInputStream(instrumentation.uiAutomation.executeShellCommand(command)).bufferedReader().use { it.readText() }
+    @Test fun confirmedCaptionsStayOutOfOnlinePlaybackLoopsAndEmptyPhotoStoriesStopCleanly() {
+        val url="https://example.org/dubao-caption-playback"
+        val article=Article(Story(Paper.PEOPLE,url,"",date="2026-10-20"),ContentParser.blocks(
+            "<p>这是配图之前的新闻正文，需要完整朗读。</p><figure><img src='photo.jpg'><figcaption>这是不应生成语音的图注。新华社记者 张三 摄</figcaption></figure><p>在重要讲话中提出的发展要求，是配图之后必须保留的正文。</p>",url))
+        val plan=Segmenter.split(article)
+        assertEquals(2,plan.size)
+        val caption=article.blocks.single {it.omitFromSpeech}
+        val onlyPhoto=article.copy(story=article.story.copy(url=url+"-photo-only"),blocks=article.blocks.filter {it.kind==BlockKind.IMAGE||it.omitFromSpeech})
+        runBlocking {
+            val dao=ReaderDatabase.get(app).reader()
+            for(a in listOf(article,onlyPhoto))dao.saveArticle(ArticleRecord(a.story.url,jsonCodec.toJson(a),System.currentTimeMillis()))
+            dao.savePosition(ReadingPosition(url,segment=1,audioMs=9000,audioBlock=caption.id,audioFingerprint="old-caption-policy"))
+        }
+        val future=main {MediaController.Builder(app,SessionToken(app,ComponentName(app,ReadAloudService::class.java))).buildAsync()}
+        val player=future.get(30,TimeUnit.SECONDS)
+        fun command(name:String,args:Bundle=Bundle.EMPTY)=main {player.sendCustomCommand(SessionCommand(name,Bundle.EMPTY),args)}.get(10,TimeUnit.SECONDS)
+        fun choose(mode:PlaybackMode) {repeat(3) {if(PlaybackSignals.state.value.mode==mode)return;command("cycleMode");Thread.sleep(100)};assertEquals(mode,PlaybackSignals.state.value.mode)}
+        val evidence=File(app.getExternalFilesDir(null),"online-evidence").apply {mkdirs()}
+        try {
+            choose(PlaybackMode.FULL_ONCE);main {player.setPlaybackSpeed(1f)}
+            command("speak",Bundle().apply {putString("request",jsonCodec.toJson(SpeechRequest(stories=listOf(article.story))))})
+            waitFor("Saved caption anchor did not resume the next body paragraph") {PlaybackSignals.state.value.block==plan.last().blockId&&main {player.isPlaying&&player.duration>0&&player.currentPosition>80}}
+            assertEquals(2,PlaybackSignals.state.value.segmentCount)
+            assertTrue(main {player.currentMediaItem!!.localConfiguration!!.uri.path!!.endsWith(".mp3")})
+            choose(PlaybackMode.FULL_LOOP)
+            main {player.seekTo((player.duration-100).coerceAtLeast(0));player.play()}
+            waitFor("Full loop did not return directly to readable body") {PlaybackSignals.state.value.block==plan.first().blockId&&main {player.isPlaying&&player.currentPosition>80}}
+            assertEquals(2,PlaybackSignals.state.value.segmentCount)
+            assertNotEquals(caption.id,PlaybackSignals.state.value.block)
+            command("speak",Bundle().apply {putString("request",jsonCodec.toJson(SpeechRequest(stories=listOf(onlyPhoto.story))))})
+            waitFor("Photo-only article left a preparing or playing state") {PlaybackSignals.state.value.article==onlyPhoto.story.url&&!PlaybackSignals.state.value.preparing&&!PlaybackSignals.state.value.playWhenReady&&main {player.mediaItemCount==0&&!player.playWhenReady}}
+            File(evidence,"caption-playback.json").writeText(jsonCodec.toJson(mapOf("caption_not_queued" to true,"body_after_photo_spoken" to true,"legacy_caption_anchor_resumed_body" to true,"loop_skips_captions" to true,"photo_only_stops_cleanly" to true,"original_blocks_retained" to(article.blocks.size==4))))
+            shell("mkdir -p /sdcard/Download/dubao-online-evidence")
+            shell("cp -r /sdcard/Android/data/com.newspaper.helper/files/online-evidence/. /sdcard/Download/dubao-online-evidence/")
+        } finally {
+            runCatching {choose(PlaybackMode.FULL_ONCE);command("stop")}
+            main {player.release()}
+        }
+    }
     @Test fun pastedNoteUsesOnlineYunyangAndPrefetchesEditsWithoutLosingLoopOrPause() {
         val settings=SettingsStore(app)
         runBlocking {settings.route(jsonCodec.toJson(Route()));settings.appearance(0,2,2);settings.playbackMode(PlaybackMode.FULL_ONCE)}

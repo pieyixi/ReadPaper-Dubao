@@ -25,7 +25,8 @@ enum class Paper(val label: String, val subtitle: String, val colors: IntArray) 
 data class Issue(val label: String, val url: String, val date: String = label)
 data class Story(val paper: Paper, val url: String, val title: String, val section: String = "", val date: String = "", val author: String = "")
 enum class BlockKind { TITLE, PARAGRAPH, IMAGE, CAPTION, LIST, QUOTE, TABLE }
-data class BodyBlock(val id: String, val kind: BlockKind, val text: String = "", val url: String = "", val parent: String = "")
+data class BodyBlock(val id: String, val kind: BlockKind, val text: String = "", val url: String = "", val parent: String = "",
+    val omitFromSpeech:Boolean=false)
 data class Article(val story: Story, val blocks: List<BodyBlock>,val parserVersion:Int=ContentParser.VERSION)
 data class SourceResult<T>(val items: List<T>, val failures: List<String> = emptyList()) {
     val complete get() = failures.isEmpty()
@@ -36,11 +37,11 @@ data class SpeechSegment(val articleId: String, val blockId: String, val text: S
     val start: Int = 0, val end: Int = start + text.length)
 object Segmenter {
     const val VERSION = "sentences-v2"
-    // 显示和朗读共用正文块。图注朗读，图片和空白不生成音频；用户文本不经过新闻清洗。
+    // 显示保留全部原文块；朗读仅跳过结构上确认的图注。私人便签不套用新闻识别规则。
     fun split(article: Article, limit: Int = 320): List<SpeechSegment> {
         require(limit >= 2)
         val out = mutableListOf<SpeechSegment>()
-        article.blocks.filter { it.kind != BlockKind.IMAGE }.forEach { block ->
+        article.blocks.filter { it.kind != BlockKind.IMAGE && (article.story.url.startsWith("custom:") || !it.omitFromSpeech) }.forEach { block ->
             var start = 0
             while (start < block.text.length) {
                 val end = boundary(block.text,start,limit,out.isEmpty())

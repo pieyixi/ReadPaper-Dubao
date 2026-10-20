@@ -1,0 +1,54 @@
+[
+  {
+    "paper": "STUDY",
+    "file": "study.html",
+    "url": "https://paper.studytimes.cn/cntheory/2026-10/14/content_9987844.html",
+    "expectedOmitted": [],
+    "expectedBody": []
+  },
+  {
+    "paper": "ORGANIZATION",
+    "file": "organization.html",
+    "url": "https://www.zuzhirenshi.com/api/welcome/selectNews?id=76ce9f2a-a313-4e3b-9a67-82f5b3b6cfc0",
+    "expectedOmitted": [
+      "龙林智 摄"
+    ],
+    "expectedBody": [
+      "近年来，广西融水苗族自治县坚持党建引领，发展传统糯谷产业，有效促进村民增产增收。图为近日，地处高寒山区的洞头村村民利用晴朗天气，将糯稻谷晾晒在房前屋后，一派丰收景象。"
+    ]
+  },
+  {
+    "paper": "PEOPLE",
+    "file": "people.html",
+    "url": "https://paper.people.com.cn/rmrb/pc/content/202610/18/content_30186272.html",
+    "expectedOmitted": [],
+    "expectedBody": [
+      "本报塔什干10月17日电  （记者王洲）10月17日，国务院总理李强在塔什干会见乌兹别克斯坦总统米尔济约耶夫。",
+      "李强表示，近年来，在习近平主席和米尔济约耶夫总统的战略引领下，中乌命运共同体建设不断取得新成果。面对国际形势变乱交织，中乌应当更加紧密团结协作，坚定携手前行。中方愿同乌方加强战略沟通，继续坚定支持彼此核心利益，拓展互利合作，为两国人民带来更多福祉。"
+    ]
+  },
+  {
+    "paper": "QIUSHI",
+    "file": "qiushi.html",
+    "url": "https://www.qstheory.cn/20260930/14152a8b895444b6a4da99555aec7d17/c.html",
+    "expectedOmitted": [
+      "2026年7月15日，中共中央总书记、国家主席、中央军委主席习近平在上海考察。这是习近平在黄浦区半淞园路街道市民新村居民区考察时，来到居民家中，了解居住条件改善情况。 新华社记者 燕雁/摄",
+      "2026年3月23日，中共中央总书记、国家主席、中央军委主席习近平在河北雄安新区考察，并主持召开深入推进雄安新区高质量建设和发展座谈会。这是23日上午，习近平在北京四中雄安校区考察时，走进教室同师生亲切交谈。 新华社记者 谢环驰/摄",
+      "2026年2月9日至10日，中共中央总书记、国家主席、中央军委主席习近平在北京考察并看望慰问基层干部群众。这是10日上午，习近平在西城区“吾老·新街”养老服务街区银龄老年公寓考察时，同老人们亲切交流。 新华社记者 燕雁/摄"
+    ],
+    "expectedBody": [
+      "加强普惠性、基础性、兜底性民生建设 ※",
+      "习近平"
+    ]
+  },
+  {
+    "paper": "SOUTH",
+    "file": "south.html",
+    "url": "https://epaper.nfnews.com/nfdaily/html/202610/18/content_10183807.html?origin=4",
+    "expectedOmitted": [],
+    "expectedBody": [
+      "●新华社记者 张晓松 朱基钗",
+      "人民日报记者 杜尚泽 胡泽曦"
+    ]
+  }
+]
