@@ -44,7 +44,7 @@ internal object CaptionRecognition {
             if(node.tagName() !in setOf("p","div","figcaption","td") || node.text().isBlank())return@forEach
             val text=node.text().trim();val full=normalized(text)
             // 行内样式仅在覆盖整段文字时才是证据，不能把同段其他正文连带标记。
-            val covering=node.getAllElements().filter {normalized(it.text())==full}
+            val covering=node.getAllElements().toList().filter {normalized(it.text())==full}
             val semantic=node.tagName()=="figcaption" || covering.any {e->e.classNames().any {it.lowercase() in captionClasses} || e.attr("role")=="caption"}
             val figure=node.parents().firstOrNull {it.tagName()=="figure"}
             val associated=imageBefore(node,base) || figure?.let {hasImage(it,base)}==true
