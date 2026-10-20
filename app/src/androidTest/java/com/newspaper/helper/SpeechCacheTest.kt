@@ -44,11 +44,12 @@ class SpeechCacheTest {
             val article=Article(Story(Paper.PEOPLE,url,""),ContentParser.blocks("<figure><img src='a.jpg'><figcaption>配图说明。张三 摄</figcaption></figure><p>"+"正文的每个已获取片段都应继续复用。".repeat(45)+"</p><p>第二段正文。</p>",url))
             val old=article.copy(blocks=article.blocks.map {it.copy(omitFromSpeech=false)})
             val engine=CountingEngine();val cache=SpeechAudioCache(root)
-            val cached=Segmenter.split(old).associate {it.text to cache.render(it,engine,false).file.absolutePath}
-            val generated=engine.calls;assertTrue(generated>3)
+            val oldPlan=Segmenter.split(old)
+            val cached=oldPlan.associate {it.text to cache.render(it,engine,false).file.absolutePath}
+            val generated=engine.calls;assertTrue(oldPlan.size>3)
             engine.offline=true
             val now=Segmenter.split(article)
-            assertEquals(generated-1,now.size)
+            assertEquals(oldPlan.size-1,now.size)
             now.forEach {assertEquals(cached[it.text],cache.render(it,engine,false).file.absolutePath)}
             assertEquals("Changing speech selection invalidated cached body audio",generated,engine.calls)
             assertEquals(4,article.blocks.size)
