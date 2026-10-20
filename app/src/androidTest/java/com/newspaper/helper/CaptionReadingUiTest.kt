@@ -78,7 +78,10 @@ class CaptionReadingUiTest {
                 val width=app.resources.configuration.screenWidthDp
                 val file=File(app.getExternalFilesDir(null),"$width-caption-reading-$theme.png")
                 file.outputStream().use {after.compress(Bitmap.CompressFormat.PNG,100,it)}
-                android.os.ParcelFileDescriptor.AutoCloseInputStream(ins.uiAutomation.executeShellCommand("mkdir -p /sdcard/Download/dubao-topbar-evidence; cp ${file.absolutePath} /sdcard/Download/dubao-topbar-evidence/")).use {it.readBytes()}
+                // executeShellCommand 不解释 shell 分隔符，目录创建与复制必须分别执行。
+                for(command in listOf("mkdir -p /sdcard/Download/dubao-topbar-evidence","cp ${file.absolutePath} /sdcard/Download/dubao-topbar-evidence/")) {
+                    android.os.ParcelFileDescriptor.AutoCloseInputStream(ins.uiAutomation.executeShellCommand(command)).use {it.readBytes()}
+                }
                 reports+=mapOf("theme" to theme,"visible_pixels_identical" to true,"body_blocks" to content.size,"speech_blocks" to Segmenter.split(marked).size)
                 before.recycle();after.recycle()
             }

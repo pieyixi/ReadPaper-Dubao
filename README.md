@@ -1,6 +1,6 @@
 # 读报
 
-当前正式版本 **2.0.2**（versionCode 10），[下载原签名 Release APK](https://github.com/pieyixi/ReadPaper-Dubao/releases/download/v2.0.2/dubao-2.0.2-release.apk)。31 项 Android 回归及原签名正式包冷启动通过；本次导航、播放入口、字号和求是清洗修复见 [RELEASE-2.0.2.md](RELEASE-2.0.2.md)，此前音频缓存改进见 [SPEECH-CACHE-UPDATE.md](SPEECH-CACHE-UPDATE.md)，开发与发布统一在 **main**：包含此前调试阶段验证的便签历史、标题/日期/字数、长按多选、置顶/删除、固定悬浮新建按钮、原文自然段循环与五挡倍速。`mock.html` 是界面预览基准，用户确认后同步 Kotlin 原生 View。报纸及自定义便签均优先使用免费云扬在线合成，朗读内容会发送至在线服务；便签保存在本机，私人音频独立缓存。调试阶段的验证记录见 [NOTES-UPDATE.md](NOTES-UPDATE.md)，原生基线正式发布记录见 [RELEASE-2.0.0.md](RELEASE-2.0.0.md)。
+当前正式版本 **2.0.3**（versionCode 11），[下载原签名 Release APK](https://github.com/pieyixi/ReadPaper-Dubao/releases/download/v2.0.3/dubao-2.0.3-release.apk)。36 项 Android 回归及原签名正式包冷启动通过；图注仅在朗读时跳过、页面完整保留，验证见 [CAPTION-SPEECH-UPDATE.md](CAPTION-SPEECH-UPDATE.md)；本次导航、播放入口、字号和求是清洗修复见 [RELEASE-2.0.2.md](RELEASE-2.0.2.md)，此前音频缓存改进见 [SPEECH-CACHE-UPDATE.md](SPEECH-CACHE-UPDATE.md)，开发与发布统一在 **main**：包含此前调试阶段验证的便签历史、标题/日期/字数、长按多选、置顶/删除、固定悬浮新建按钮、原文自然段循环与五挡倍速。`mock.html` 是界面预览基准，用户确认后同步 Kotlin 原生 View。报纸及自定义便签均优先使用免费云扬在线合成，朗读内容会发送至在线服务；便签保存在本机，私人音频独立缓存。调试阶段的验证记录见 [NOTES-UPDATE.md](NOTES-UPDATE.md)，原生基线正式发布记录见 [RELEASE-2.0.0.md](RELEASE-2.0.0.md)。
 
 
 Kotlin 原生 Android 读报器，保留学习时报、组织人事报、人民日报、南方日报、求是五个来源。报纸和自定义便签默认使用免费的云扬在线自然语音。包名仍为 `com.newspaper.helper`。朗读倍速为 0.8、1、1.1、1.2、1.3 五挡，更新记录见 [SPEED-UPDATE.md](SPEED-UPDATE.md)。
@@ -24,7 +24,7 @@ bash scripts/cloud-build.sh checks
 
 在同一个 checkout 中串行运行 Gradle，避免两个构建同时改写产物。Debug APK 为 `app/build/outputs/apk/debug/app-debug.apk`；lint 与 JVM 报告在 `app/build/reports/`。源码仓库不包含 APK、SDK、缓存或签名文件。
 
-也可使用仓库的 `Android build and speech checks` GitHub Actions：推送 main 后，标准 Ubuntu 云端运行器负责单元测试、Debug/Release lint、文案审计、原密钥签名正式包，以及 API 28 模拟器的 320/390dp 原生界面检查；独立在线语音抽查成功后再运行真实播放检查。Debug 仅用于自动化设备测试，交付 APK 为校验过原始证书、2.0.2/versionCode 10、非 debuggable 的 Release，另实测正式包冷启动。APK 与报告作为短期附件保存，正式发行附件存放在 GitHub Release；无需在本机下载构建依赖。构建成功、外部接口可用、模拟器通过和人耳听音是不同结论。
+也可使用仓库的 `Android build and speech checks` GitHub Actions：推送 main 后，标准 Ubuntu 云端运行器负责单元测试、Debug/Release lint、文案审计、原密钥签名正式包，以及 API 28 模拟器的 320/390dp 原生界面检查；独立在线语音抽查成功后再运行真实播放检查。Debug 仅用于自动化设备测试，交付 APK 为校验过原始证书、2.0.3/versionCode 11、非 debuggable 的 Release，另实测正式包冷启动。APK 与报告作为短期附件保存，正式发行附件存放在 GitHub Release；无需在本机下载构建依赖。构建成功、外部接口可用、模拟器通过和人耳听音是不同结论。
 
 真实网站联网检查单独执行，避免离线测试依赖官网可用性：
 
