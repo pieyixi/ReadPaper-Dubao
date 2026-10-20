@@ -41,16 +41,16 @@ class SpeechCacheTest {
         val root=temp()
         try {
             val url="https://example.org/caption-cache-${UUID.randomUUID()}"
-            val article=Article(Story(Paper.PEOPLE,url,""),ContentParser.blocks("<p>第一段正文。</p><figure><img src='a.jpg'><figcaption>配图说明。张三 摄</figcaption></figure><p>第二段正文。</p>",url))
+            val article=Article(Story(Paper.PEOPLE,url,""),ContentParser.blocks("<figure><img src='a.jpg'><figcaption>配图说明。张三 摄</figcaption></figure><p>"+"正文的每个已获取片段都应继续复用。".repeat(45)+"</p><p>第二段正文。</p>",url))
             val old=article.copy(blocks=article.blocks.map {it.copy(omitFromSpeech=false)})
             val engine=CountingEngine();val cache=SpeechAudioCache(root)
             val cached=Segmenter.split(old).associate {it.text to cache.render(it,engine,false).file.absolutePath}
-            assertEquals(3,engine.calls)
+            val generated=engine.calls;assertTrue(generated>3)
             engine.offline=true
             val now=Segmenter.split(article)
-            assertEquals(2,now.size)
+            assertEquals(generated-1,now.size)
             now.forEach {assertEquals(cached[it.text],cache.render(it,engine,false).file.absolutePath)}
-            assertEquals("Changing speech selection invalidated cached body audio",3,engine.calls)
+            assertEquals("Changing speech selection invalidated cached body audio",generated,engine.calls)
             assertEquals(4,article.blocks.size)
             assertEquals(1,article.blocks.count {it.omitFromSpeech})
         } finally {root.deleteRecursively()}

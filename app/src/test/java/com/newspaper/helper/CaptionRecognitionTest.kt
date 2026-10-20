@@ -100,5 +100,9 @@ class CaptionRecognitionTest {
         val plain=article("<p>没有图注的正文。</p>")
         val legacy=stableId("${Segmenter.VERSION}|${engine.cacheIdentity}|"+plain.blocks.joinToString("\n") {"${it.id}|${it.kind}|${it.text}"})
         assertEquals(legacy,SpeechPolicy.fingerprint(plain,engine))
+        val prefix=article("<figure><img src='a.jpg'><figcaption>原来的首段图注。</figcaption></figure><p>"+"长正文内容不能因去掉前置图注而改变缓存分段。".repeat(50)+"</p>")
+        val oldPlan=Segmenter.split(prefix.copy(blocks=prefix.blocks.map {it.copy(omitFromSpeech=false)}))
+        val bodyId=prefix.blocks.last().id
+        assertEquals(oldPlan.filter {it.blockId==bodyId}.map {Triple(it.text,it.start,it.end)},Segmenter.split(prefix).map {Triple(it.text,it.start,it.end)})
     }
 }

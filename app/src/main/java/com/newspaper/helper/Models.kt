@@ -41,12 +41,18 @@ object Segmenter {
     fun split(article: Article, limit: Int = 320): List<SpeechSegment> {
         require(limit >= 2)
         val out = mutableListOf<SpeechSegment>()
-        article.blocks.filter { it.kind != BlockKind.IMAGE && (article.story.url.startsWith("custom:") || !it.omitFromSpeech) }.forEach { block ->
+        var first=true
+        article.blocks.filter { it.kind != BlockKind.IMAGE }.forEach { block ->
+            if(!article.story.url.startsWith("custom:") && block.omitFromSpeech) {
+                // 首段若是图注，仍保留后续正文原来的切分边界，避免已缓存的正文因去图注而重合成。
+                if(block.text.isNotBlank())first=false
+                return@forEach
+            }
             var start = 0
             while (start < block.text.length) {
-                val end = boundary(block.text,start,limit,out.isEmpty())
+                val end = boundary(block.text,start,limit,first)
                 val text = block.text.substring(start, end)
-                if (text.isNotBlank()) out += SpeechSegment(article.story.url, block.id, text, out.size,start,end)
+                if (text.isNotBlank()) {out += SpeechSegment(article.story.url, block.id, text, out.size,start,end);first=false}
                 start = end
             }
         }
