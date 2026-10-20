@@ -15,7 +15,8 @@ internal object CaptionRecognition {
     private fun centered(node:Element)=node.attr("align").equals("center",true) || "text-align:center" in style(node)
     private fun rightAligned(node:Element)=node.attr("align").equals("right",true) || "text-align:right" in style(node)
     private fun hasImage(node:Element,base:String)=node.select("img").any {
-        ContentParser.safeUrl(base,it.attr("src").ifBlank {it.attr("data-src")})!=null
+        val raw=it.attr("src").ifBlank {it.attr("data-src")}
+        raw.isNotBlank() && ContentParser.safeUrl(base,raw)!=null
     }
     private fun imageOnly(node:Element,base:String)=hasImage(node,base) && node.text().isBlank()
     private fun previous(node:Element):Element? {

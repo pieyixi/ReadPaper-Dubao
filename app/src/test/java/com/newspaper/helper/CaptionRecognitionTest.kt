@@ -70,6 +70,11 @@ class CaptionRecognitionTest {
         assertEquals(listOf("这张配图的说明。"),a.blocks.filter {it.omitFromSpeech}.map {it.text})
         assertEquals("正常正文。没有对应图片的正文标签。",speech(a))
         assertFalse(article("<p><img src='a.jpg'></p><div class='caption-analysis'>普通分析正文。</div>").blocks.last().omitFromSpeech)
+        for(image in listOf("<img>","<img src='javascript:alert(1)'>")) {
+            val invalid=article("<figure>$image<figcaption>没有有效配图，不能据此跳过文字。</figcaption></figure>")
+            assertFalse(invalid.blocks.any {it.omitFromSpeech})
+            assertEquals("没有有效配图，不能据此跳过文字。",speech(invalid))
+        }
     }
     @Test fun captionsInsideMixedTableCannotSuppressRealTableData() {
         val a=article("<table><tr><td><img src='a.jpg'></td><td>实际统计数据：42</td></tr><tr><td class='pictext'>表内配图说明。</td><td>结论需要朗读。</td></tr></table>")
