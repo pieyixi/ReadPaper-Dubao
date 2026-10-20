@@ -8,8 +8,8 @@ import java.util.IdentityHashMap
 /** 只标记有图片关系的独立图注，不改写正文或按“摄、重要讲话”等词删除段落。 */
 internal object CaptionRecognition {
     private val captionClasses=setOf("caption","figcaption","pictext","imgtext","photo-caption","picture-caption","image-caption","img-caption","pic-caption","pic-desc","img-desc","photo-desc","tuzhu")
-    private val credit=Regex("^(?:(?:新华社(?:记者|发)?|本报(?:记者|通讯员)?|人民图片|南方日报(?:记者)?|通讯员|特约摄影|摄影)[\\s　]*)?(?:[\\p{IsHan}·]{2,6}[\\s　]*){1,3}(?:[/／][\\s　]*)?(?:摄|摄影|拍摄|供图|制图|绘)[。.]?$")
-    private val creditedTail=Regex("(?:新华社(?:记者|发)?|本报(?:记者|通讯员)|人民图片|南方日报记者|通讯员)[\\s　]*[\\p{IsHan}·]{2,4}(?:[/／][\\s　]*)?(?:摄|摄影|拍摄|供图|制图|绘)[。.]?$")
+    private val credit=Regex("^(?:(?:新华社(?:记者|发)?|本报(?:记者|通讯员)?|人民图片|南方日报(?:记者)?|通讯员|特约摄影|摄影)[\\s　]*)?(?:[\u3400-\u9fff·]{2,6}[\\s　]*){1,3}(?:[/／][\\s　]*)?(?:摄|摄影|拍摄|供图|制图|绘)[。.]?$")
+    private val creditedTail=Regex("(?:新华社(?:记者|发)?|本报(?:记者|通讯员)|人民图片|南方日报记者|通讯员)[\\s　]*[\u3400-\u9fff·]{2,4}(?:[/／][\\s　]*)?(?:摄|摄影|拍摄|供图|制图|绘)[。.]?$")
     private fun normalized(text:String)=text.filterNot {it.isWhitespace() || it=='\u00a0' || it=='\u3000'}
     private fun style(node:Element)=node.attr("style").lowercase().replace(Regex("\\s+"),"")
     private fun centered(node:Element)=node.attr("align").equals("center",true) || "text-align:center" in style(node)

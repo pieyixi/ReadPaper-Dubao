@@ -18,7 +18,11 @@ object ContentParser {
         val root = Jsoup.parseBodyFragment(html, base).body()
         // 只移除明确的外围结构，不按新闻中的“广告、公告、债权”等词删正文。
         root.select("script,style,iframe,nav,header,footer,aside,form,button,.font_change,.share,.tool,.tools,.toolbar,.prev-next,.related,.copyright").remove()
-        val captions=CaptionRecognition.identify(root,base)
+        // 图注是附加朗读标记；识别器不可用时保留完整正文，不能拖垮阅读加载。
+        val captions=try {CaptionRecognition.identify(root,base)}
+            catch(error:kotlinx.coroutines.CancellationException) {throw error}
+            catch(error:RuntimeException) {emptySet<Element>()}
+            catch(error:LinkageError) {emptySet<Element>()}
         val result = mutableListOf<BodyBlock>()
         fun add(kind: BlockKind, text: String = "", url: String = "", parent: String = "",omit:Boolean=false) {
             val clean = text.trim(' ', '\t', '\n', '\r', '\u00a0', '\u3000')
